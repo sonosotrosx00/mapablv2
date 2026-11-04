@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Painel Operacional e Gerencial · Capina e Pontos Críticos · Belém/PA</title>
+  <link rel="stylesheet" href="css/estilo.css?v=1104d" />
+  <style>
+    html, body { height: auto; min-height: 100%; overflow-y: auto; background: #f6f8f6; }
+    .dash-topo {
+      position: sticky; top: 0; z-index: 100;
+      background: #fff; border-bottom: 1px solid var(--borda);
+      padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+    }
+    .dash-marca { display: flex; align-items: center; gap: 12px; }
+    .dash-logo {
+      width: 36px; height: 36px; border-radius: 9px; background: var(--verde); color: #fff;
+      font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center;
+    }
+    .dash-titulo { font-size: 16px; font-weight: 700; color: var(--txt); }
+    .dash-sub { font-size: 12px; color: var(--cinza); }
+    .dash-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bt-voltar-mapa {
+      display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px;
+      background: var(--verde); color: #fff; font-weight: 600; font-size: 12.5px; text-decoration: none;
+      border: 1px solid var(--verde-esc); transition: background .15s;
+    }
+    .bt-voltar-mapa:hover { background: var(--verde-esc); }
+
+    .bt-modo-teste {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 7px;
+      background: #f8fafc; color: #475569; border: 1px dashed #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .bt-modo-teste.on {
+      background: #eff6ff; color: #1d4ed8; border: 1px solid #60a5fa;
+    }
+
+    .dash-wrap { max-width: 1440px; margin: 0 auto; padding: 18px 24px 48px; }
+
+    /* Barra de filtros e exportação */
+    .dash-barra {
+      background: #fff; border: 1px solid var(--borda); border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .dash-barra-linha {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    .dash-filtros { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .dash-campo { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--cinza); font-weight: 600; }
+    .dash-campo select, .dash-campo input {
+      height: 33px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 6px;
+      background: #fff; color: var(--txt); font: inherit; font-size: 12.5px; font-weight: 500;
+    }
+    .dash-exports { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* Abas do Dashboard */
+    .dash-abas {
+      display: flex; gap: 8px; margin-bottom: 18px; border-bottom: 2px solid var(--borda); padding-bottom: 0; flex-wrap: wrap;
+    }
+    .dash-aba {
+      padding: 10px 18px; border: 1px solid transparent; border-bottom: 3px solid transparent;
+      background: transparent; color: var(--cinza); font: inherit; font-size: 13.5px; font-weight: 600;
+      cursor: pointer; margin-bottom: -2px; border-radius: 8px 8px 0 0; transition: all .15s;
+    }
+    .dash-aba:hover { color: var(--verde-esc); background: var(--verde-claro); }
+    .dash-aba.on {
+      color: var(--verde-esc); background: #fff; border-color: var(--borda);
+      border-bottom: 3px solid var(--verde); font-weight: 700;
+    }
+    .dash-aba.aba-teste { color: #1d4ed8; }
+    .dash-aba.aba-teste.on { border-bottom-color: #2563eb; color: #1e40af; }
+
+    /* Cards executivos */
+    .dash-kpis {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: #fff; border: 1px solid var(--borda); border-left: 4px solid var(--verde);
+      border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.03);
+    }
+    .kpi-card.alerta { border-left-color: #d97706; }
+    .kpi-card.critico { border-left-color: #dc2626; }
+    .kpi-card.info { border-left-color: #0284c7; }
+    .kpi-rotulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--cinza); }
+    .kpi-valor { font-size: 24px; font-weight: 800; color: var(--txt); margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+    .kpi-det { font-size: 11.5px; color: var(--cinza); line-height: 1.35; }
+
+    /* Grids de conteúdo */
+    .dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 1050px) {
+      .dash-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .dash-painel {
+      background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 16px 18px;
+      margin-bottom: 16px; box-shadow: 0 1px 3px rgba(15,23,42,.03);
+    }
+    .dash-painel-cab {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+      margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--borda); flex-wrap: wrap;
+    }
+    .dash-painel-tit { font-size: 14.5px; font-weight: 700; color: var(--txt); }
+    .dash-painel-sub { font-size: 11.5px; color: var(--cinza); }
+
+    /* Tabelas executivas */
+    .tab-wrap { overflow-x: auto; }
+    .tab-exec { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tab-exec th {
+      text-align: left; padding: 8px 10px; background: var(--fundo); color: var(--cinza);
+      font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+      border-bottom: 1px solid var(--borda); white-space: nowrap;
+    }
+    .tab-exec td {
+      padding: 8px 10px; border-bottom: 1px solid var(--borda); vertical-align: middle;
+    }
+    .tab-exec tr:hover td { background: #f8fbf8; }
+    .tab-exec tr.total-row td {
+      background: var(--verde-claro); font-weight: 700; border-top: 2px solid var(--verde); color: var(--verde-esc);
+    }
+
+    /* Badges de status */
+    .st-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+    }
+    .st-ok { background: #dcfce7; color: #15803d; }
+    .st-warn { background: #fef3c7; color: #b45309; }
+    .st-err { background: #fee2e2; color: #b91c1c; }
+    .st-info { background: #e0f2fe; color: #0369a1; }
+    .st-neutral { background: #f1f5f9; color: #475569; }
+    .area-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+      color: #1f2a24; border: 1px solid rgba(0,0,0,.12); white-space: nowrap; text-decoration: none;
+    }
+
+    /* Gráficos de Rosca (Donut SVG) + Cards Laterais */
+    .donut-layout {
+      display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: center; margin-bottom: 16px;
+    }
+    @media (max-width: 600px) { .donut-layout { grid-template-columns: 1fr; justify-items: center; } }
+    .donut-box { position: relative; width: 170px; height: 170px; display: flex; align-items: center; justify-content: center; }
+    .donut-centro {
+      position: absolute; text-align: center; pointer-events: none;
+    }
+    .donut-centro b { display: block; font-size: 19px; font-weight: 800; color: var(--txt); line-height: 1.1; }
+    .donut-centro small { font-size: 10.5px; color: var(--cinza); font-weight: 600; text-transform: uppercase; }
+    .donut-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; width: 100%; }
+    .d-card {
+      border: 1px solid var(--borda); border-radius: 8px; padding: 9px 11px; background: #fafcfa;
+      border-left: 4px solid #cbd5e1;
+    }
+    .d-card small { display: block; font-size: 11px; color: var(--cinza); font-weight: 600; }
+    .d-card b { font-size: 15px; color: var(--txt); font-variant-numeric: tabular-nums; }
+    .d-card span { font-size: 11px; color: var(--cinza); margin-left: 4px; }
+
+    /* Gráfico de Colunas Verticais (Semanas e Pontos por Área) */
+    .col-chart {
+      display: flex; align-items: flex-end; gap: 10px; height: 185px; padding: 22px 8px 6px;
+      border-bottom: 1px solid var(--borda); overflow-x: auto;
+    }
+    .col-item {
+      flex: 1; min-width: 48px; height: 100%; display: flex; flex-direction: column;
+      justify-content: flex-end; align-items: center; gap: 4px;
+    }
+    .col-bar-wrap {
+      width: 100%; flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 3px;
+    }
+    .col-bar {
+      width: 24px; max-width: 100%; border-radius: 5px 5px 0 0; transition: height .25s;
+      position: relative; min-height: 3px;
+    }
+    .col-bar.fino { width: 14px; border-radius: 3px 3px 0 0; }
+    .col-val { font-size: 10.5px; font-weight: 700; color: var(--txt); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .col-lbl { font-size: 10.5px; font-weight: 600; color: var(--cinza); text-align: center; white-space: nowrap; margin-top: 4px; }
+
+    /*Gráfico de Barras Horizontais com Linha de Meta (Bullet Chart)*/
+    .bar-chart { display: flex; flex-direction: column; gap: 9px; }
+    .bar-row { display: grid; grid-template-columns: 165px 1fr 130px; align-items: center; gap: 10px; font-size: 12px; }
+    .bar-lbl { font-weight: 600; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { height: 14px; background: #eef2ee; border-radius: 99px; overflow: visible; display: flex; position: relative; }
+    .bar-fill { height: 100%; border-radius: 99px; transition: width .25s; }
+    .bar-meta-line {
+      position: absolute; top: -4px; bottom: -4px; width: 2px; background: #1e293b; z-index: 2;
+    }
+    .bar-meta-line::after {
+      content: "Meta"; position: absolute; top: -13px; left: -12px; font-size: 9px; font-weight: 700; color: #1e293b;
+    }
+    .bar-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--cinza); font-size: 11.5px; }
+
+    /* Cards de Supervisores e Equipes */
+    .sup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(265px, 1fr)); gap: 12px; }
+    .sup-box {
+      border: 1px solid var(--borda); border-radius: 9px; padding: 12px 14px; background: #fbfdfb;
+    }
+    .sup-box-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sup-box-nome { font-weight: 700; font-size: 13.5px; color: var(--txt); }
+    .sup-box-meta { font-size: 11.5px; color: var(--cinza); margin-bottom: 8px; line-height: 1.4; }
+    .eq-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .eq-tag {
+      background: #fff; border: 1px solid var(--borda); border-radius: 6px; padding: 4px 8px;
+      font-size: 11px; font-weight: 600; color: var(--txt); text-decoration: none; cursor: pointer;
+    }
+    .eq-tag:hover { border-color: var(--verde); background: var(--verde-claro); }
+    .eq-tag b { color: var(--verde-esc); }
+
+    /* Estilos do Editor Visual da Planilha (Modo Teste) */
+    .ed-plan-cab {
+      display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--borda);
+    }
+    .ed-aviso-ok {
+      background: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 8px;
+      padding: 8px 12px; font-size: 12.5px; font-weight: 700; margin-bottom: 12px;
+    }
+    .ed-plan-barra {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .ed-busca {
+      height: 32px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 6px;
+      font: inherit; font-size: 12px; min-width: 260px;
+    }
+    .ed-grid-wrap {
+      max-height: 540px; overflow: auto; border: 1px solid var(--borda); border-radius: 8px; background: #fff;
+    }
+    .ed-grid-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ed-grid-tab th {
+      position: sticky; top: 0; z-index: 2; background: #f1f5f2; color: var(--txt);
+      font-size: 11px; font-weight: 700; padding: 7px 8px; border-bottom: 1px solid var(--borda);
+      border-right: 1px solid #e2e8f0; text-align: left; white-space: nowrap;
+    }
+    .ed-grid-tab td {
+      padding: 0; border-bottom: 1px solid #eef2ee; border-right: 1px solid #eef2ee;
+    }
+    .ed-num {
+      padding: 4px 8px !important; text-align: center; background: #f8faf8; color: var(--cinza);
+      font-weight: 600; font-size: 11px; user-select: none;
+    }
+    .cel-in {
+      width: 100%; min-width: 95px; height: 30px; padding: 0 7px; border: 0; background: transparent;
+      font: inherit; font-size: 12px; color: var(--txt); outline: none;
+    }
+    .cel-in.largo { min-width: 185px; }
+    .cel-in.curto { min-width: 58px; text-align: center; }
+    .cel-in:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; }
+    .ed-bt-del {
+      background: transparent; color: #94a3b8; border: 0; font-size: 16px; font-weight: 700;
+      padding: 2px 8px; cursor: pointer;
+    }
+    .ed-bt-del:hover { color: var(--vermelho); background: #fee2e2; }
+    .dash-dica { position: fixed; z-index: 3000; pointer-events: none; background: #fff; border: 1px solid var(--borda); border-radius: 8px; box-shadow: 0 4px 16px rgba(15,23,42,.18); padding: 8px 11px; font-size: 12px; line-height: 1.45; color: var(--txt); max-width: 280px; }
+    .dash-dica b { color: var(--verde-esc); }
+    .dash-dica small { color: var(--cinza); }
+    .clicavel { cursor: pointer; }
+    .col-item.clicavel:hover .col-bar, .bar-row.clicavel:hover .bar-fill { filter: brightness(1.12); outline: 2px solid rgba(20,83,45,.25); }
+    .bar-row.clicavel:hover { background: #f4faf5; border-radius: 6px; }
+    circle.fatia:hover { stroke-width: 26; }
+    .form-local { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px 14px; }
+    .form-local label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--cinza); }
+    .form-local .largo { grid-column: 1 / -1; }
+    .form-local input, .form-local select { height: 34px; padding: 0 10px; border: 1px solid var(--borda); border-radius: 6px; font: inherit; font-size: 13px; color: var(--txt); background: #fff; }
+  </style>
+</head>
+<body>
+
+<header class="dash-topo">
+  <div class="dash-marca">
+    <div class="dash-logo">BL</div>
+    <div>
+      <div class="dash-titulo">Dashboard Operacional e Gerencial · Ciclus Amazônia</div>
+      <div class="dash-sub" id="dashStatus">Carregando indicadores operacionais…</div>
+    </div>
+  </div>
+  <div class="dash-acoes">
+    <button type="button" id="btToggleModoTeste" class="bt-modo-teste on" title="Mostrar ou esconder a aba Planilha e Formulário">
+      Planilha e Formulário: <b id="txtEstadoTeste">Ativo</b>
+    </button>
+    <div class="seg" id="dashSegFonte" style="margin:0">
+      <button type="button" data-fonte="local" class="on">Planilha Exemplo</button>
+      <button type="button" data-fonte="excel">Subir Excel</button>
+      <button type="button" data-fonte="google">Google Sheets</button>
+    </div>
+    <button type="button" id="btDashEscolherExcel" class="sec" hidden>Escolher .xlsx…</button>
+    <input type="file" id="inDashExcel" accept=".xlsx,.xlsm,.xls,.ods" hidden />
+    <button type="button" id="btDashAtualizar" class="sec">Atualizar</button>
+    <a href="index.html" class="bt-voltar-mapa">&larr; Voltar ao Mapa Interativo</a>
+  </div>
+</header>
+
+<main class="dash-wrap">
+  <!-- Barra de filtros e exportação -->
+  <section class="dash-barra">
+    <div id="dashPainelGoogle" class="dash-barra-linha" hidden style="padding-bottom:8px;border-bottom:1px solid var(--borda)">
+      <label class="dash-campo" style="flex:1">Link da planilha Google Sheets
+        <input type="text" id="inDashLink" placeholder="https://docs.google.com/spreadsheets/d/…" />
+      </label>
+      <button type="button" id="btDashUsarLink" class="sec">Carregar Google Sheets</button>
+    </div>
+
+    <div class="dash-barra-linha">
+      <div class="dash-filtros">
+        <div class="dash-campo">Período rápido
+          <div class="seg" id="dashSegPer" style="margin:0">
+            <button type="button" data-per="semana">Esta semana</button>
+            <button type="button" data-per="passada">Semana passada</button>
+            <button type="button" data-per="mes">Este mês</button>
+            <button type="button" data-per="tudo" class="on">Tudo</button>
+          </div>
+        </div>
+        <label class="dash-campo">Ciclo
+          <select id="dCiclo"><option value="">Ciclo atual de cada área</option></select>
+        </label>
+        <label class="dash-campo">De
+          <input type="date" id="dIni" />
+        </label>
+        <label class="dash-campo">Até
+          <input type="date" id="dFim" />
+        </label>
+        <label class="dash-campo">Supervisor
+          <select id="dSup"><option value="">Todos os supervisores</option></select>
+        </label>
+        <label class="dash-campo">Serviço
+          <select id="dServico"><option value="">Todos os serviços</option></select>
+        </label>
+        <button type="button" id="btLimparFiltros" class="sec">Limpar filtros</button>
+      </div>
+      <div class="dash-exports">
+        <button type="button" id="btExpProd" class="sec">Excel Produtividade</button>
+        <button type="button" id="btExpSemanal" class="sec">Excel Semanal</button>
+        <button type="button" id="btExpLanc" class="sec">Excel Lançamentos</button>
+        <button type="button" id="btExpPBI" class="sec">Excel Power BI (Completo)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Navegação por abas -->
+  <nav class="dash-abas" id="dashAbas">
+    <button type="button" class="dash-aba on" data-aba="capina">1. Visão Geral, Ciclos &amp; Capinação</button>
+    <button type="button" class="dash-aba" data-aba="equipes">2. Supervisores &amp; Produtividade das Equipes</button>
+    <button type="button" class="dash-aba" data-aba="pontos">3. Pontos Críticos &amp; Caminhões</button>
+    <button type="button" class="dash-aba aba-teste" id="btAbaPlanilha" data-aba="planilha">4. Planilha e Formulário</button>
+  </nav>
+
+  <!-- ABA 1: VISÃO GERAL, CICLOS & CAPINAÇÃO -->
+  <section id="sec-capina" class="dash-sec">
+    <div class="dash-kpis" id="kpisCapina"></div>
+
+    <div class="dash-painel">
+      <div class="dash-painel-cab">
+        <div>
+          <div class="dash-painel-tit">Eficiência dos Ciclos e Acompanhamento de Prazo por Área (Áreas 1 a 10)</div>
+          <div class="dash-painel-sub">Comparativo de extensão planejada vs. executada, dias corridos, dias úteis (Seg–Sex e Seg–½ Sáb) e aderência à recorrência planejada</div>
+        </div>
+      </div>
+      <div class="tab-wrap" id="tabCiclosArea"></div>
+    </div>
+
+    <div class="dash-grid-2">
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Situação da Malha Viária (Tempo desde a Capina)</div>
+            <div class="dash-painel-sub">Visão consolidada em rosca e detalhamento individualizado por área (sem barras empilhadas)</div>
+          </div>
+        </div>
+        <div id="chartSituacaoAreas"></div>
+      </div>
+
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Evolução Semanal de Capinação e Modalidades</div>
+            <div class="dash-painel-sub">Gráfico de colunas de produção semanal (km) e distribuição por tipo de serviço</div>
+          </div>
+        </div>
+        <div id="chartEvolucaoSemanal"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABA 2: SUPERVISORES & EQUIPES -->
+  <section id="sec-equipes" class="dash-sec" hidden>
+    <div class="dash-kpis" id="kpisEquipes"></div>
+
+    <div class="dash-grid-2">
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Ranking de Supervisores · Extensão Executada (km)</div>
+            <div class="dash-painel-sub">Total acumulado no período/ciclo selecionado por supervisor e área</div>
+          </div>
+        </div>
+        <div id="chartRankSupKm"></div>
+      </div>
+
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Desempenho vs. Meta Operacional (1.950 m/equipe/dia)</div>
+            <div class="dash-painel-sub">Comparativo direto da média por equipe/dia frente à linha de meta e rendimento homem/dia</div>
+          </div>
+        </div>
+        <div id="chartRankSupProd"></div>
+      </div>
+    </div>
+
+    <div class="dash-painel">
+      <div class="dash-painel-cab">
+        <div>
+          <div class="dash-painel-tit">Mapa de Supervisores e suas Respectivas Equipes</div>
+          <div class="dash-painel-sub">Relação de equipes vinculadas a cada área/supervisor com produção acumulada e média diária (clique numa equipe para abrir no mapa)</div>
+        </div>
+      </div>
+      <div id="gridSupervisoresEquipes" class="sup-grid"></div>
+    </div>
+
+    <div class="dash-painel">
+      <div class="dash-painel-cab">
+        <div>
+          <div class="dash-painel-tit">Tabela Geral de Produtividade por Equipe</div>
+          <div class="dash-painel-sub">Desempenho auditado por equipe frente à meta operacional de 1.950 m/dia</div>
+        </div>
+      </div>
+      <div class="tab-wrap" id="tabProdEquipes"></div>
+    </div>
+  </section>
+
+  <!-- ABA 3: PONTOS CRÍTICOS & FROTA CB -->
+  <section id="sec-pontos" class="dash-sec" hidden>
+    <div class="dash-kpis" id="kpisPontos"></div>
+
+    <div class="dash-painel">
+      <div class="dash-painel-cab">
+        <div>
+          <div class="dash-painel-tit">Dimensionamento Operacional, Logística e Caminhões Basculantes por Área</div>
+          <div class="dash-painel-sub">Estudo técnico de roteirização, deslocamento improdutivo (Garagem + Aterro), peso estimado (t/dia), viagens e frota necessária</div>
+        </div>
+      </div>
+      <div class="tab-wrap" id="tabEstudoFrota"></div>
+    </div>
+
+    <div class="dash-grid-2">
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Coleta dos Pontos Críticos por Área (Áreas 2 a 10)</div>
+            <div class="dash-painel-sub">Proporção geral e gráfico de colunas comparativas por área (Coletados, Não Coletados e Pendentes)</div>
+          </div>
+        </div>
+        <div id="chartPontosArea"></div>
+      </div>
+
+      <div class="dash-painel">
+        <div class="dash-painel-cab">
+          <div>
+            <div class="dash-painel-tit">Perfil dos Pontos Críticos (Patrulha e Tipo de Material)</div>
+            <div class="dash-painel-sub">Divisão entre coleta Mecanizada vs. Manual e composição dos resíduos (Misto, RCC, Domiciliar)</div>
+          </div>
+        </div>
+        <div id="chartPerfilPontos"></div>
+      </div>
+    </div>
+
+    <div class="dash-painel">
+      <div class="dash-painel-cab">
+        <div>
+          <div class="dash-painel-tit">Relação de Pontos Críticos Não Coletados (Atenção Operacional)</div>
+          <div class="dash-painel-sub">Pontos com impedimento ou pendência registrada em campo para tratativa imediata</div>
+        </div>
+      </div>
+      <div class="tab-wrap" id="tabPontosNaoColetados"></div>
+    </div>
+  </section>
+
+  <!-- ABA 4: EDITOR VISUAL DA PLANILHA (MODO TESTE) -->
+  <section id="sec-planilha" class="dash-sec" hidden>
+    <div class="seg" id="segPlanForm" style="margin:0 0 12px;max-width:640px">
+      <button type="button" data-sub="planilha" class="on">Planilha (editar)</button>
+      <button type="button" data-sub="forms">Formulário Google</button>
+      <button type="button" data-sub="local">Lançar pelo site</button>
+    </div>
+    <div class="dash-painel" id="containerEditorPlanilha"></div>
+    <div class="dash-painel" id="containerForms" hidden>
+      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Formulário Google – Lançamento de Capina</div><div class="dash-painel-sub">As respostas vão para a planilha Google (aba Respostas ao formulário 1). Para ver no mapa, use a fonte Google Sheets e clique em Atualizar.</div></div>
+        <a id="lnkFormsNova" class="sec" href="#" target="_blank" rel="noopener" style="text-decoration:none;padding:6px 11px;border-radius:6px">Abrir em nova aba &#8599;</a></div>
+      <iframe id="ifrForms" title="Formulário Google" style="width:100%;height:1500px;border:0;border-radius:8px;background:#fff"></iframe>
+    </div>
+    <div class="dash-painel" id="containerFormLocal" hidden></div>
+  </section>
+</main>
+
+<script src="vendor/xlsx.mini.min.js"></script>
+<script src="data/geo.js?v=1104d"></script>
+<script src="data/ruas.js?v=1104d"></script>
+<script src="data/planilha_local.js?v=1104d"></script>
+<script src="js/config.js?v=1104d"></script>
+<script src="js/util.js?v=1104d"></script>
+<script src="js/localizador.js?v=1104d"></script>
+<script src="js/dados.js?v=1104d"></script>
+<script src="js/calculos.js?v=1104d"></script>
+<script src="js/exportar.js?v=1104d"></script>
+<script src="js/editor_planilha.js?v=1104d"></script>
+<script src="js/dashboard.js?v=1104d"></script>
+</body>
+</html>

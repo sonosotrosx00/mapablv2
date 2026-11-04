@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>Acompanhamento de Capina — Belém/PA (Protótipo Simplificado)</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="css/estilo.css?v=1104d">
+</head>
+<body>
+<div class="app">
+  <aside id="painel" class="painel" data-altura="baixo">
+    <button class="alca" id="alca" type="button" aria-label="Expandir ou recolher painel"><span></span></button>
+    <header class="topo">
+      <div class="topo-linha">
+        <div>
+          <h1>Acompanhamento de Capina</h1>
+          <p id="subtitulo">Belém/PA · 10 Áreas e Pontos Críticos</p>
+        </div>
+        <a href="dashboard.html" target="_blank" class="bt-dash-topo" title="Abrir Dashboard Gerencial e Operacional em nova aba">Dashboard &#8599;</a>
+      </div>
+    </header>
+    <div class="mini" id="mini"></div>
+    <div class="rolagem" id="rolagem">
+      <section id="principal">
+        <div class="bloco totais">
+          <div class="tot-item"><small>Extensão de capina</small><b id="totKm">—</b></div>
+          <button type="button" class="tot-clic" id="btEquipesTopo" title="Ver supervisores e equipes"><small>Equipes &#8594;</small><b id="totEq">—</b></button>
+          <button type="button" class="tot-clic" id="btAreasTopo" title="Ver a lista de áreas"><small>Áreas &#8594;</small><b id="totAreas">—</b></button>
+        </div>
+
+        <!-- 2 CARTÕES PRINCIPAIS UNIFICADOS E CLICÁVEIS -->
+        <div class="bloco">
+          <div class="cards-duplos">
+            <div class="card clic" id="cardCapina" role="button" tabindex="0" title="Clique para colorir o mapa pelo andamento do ciclo">
+              <div>
+                <div class="rot" id="rotCiclo">Capina no ciclo atual</div>
+                <div class="val" id="kmPct">0%</div>
+                <div class="sub" id="kmTxt">—</div>
+                <div class="barra"><i id="kmBarra"></i></div>
+              </div>
+              <div class="rodape-card">
+                <span>Falta: <b id="kmFalta">—</b></span>
+                <span id="areasOk">—</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="clic-bloco" id="btPontosTopo" role="button" tabindex="0" title="Clique para ver a lista de todos os pontos críticos">
+                <div class="rot">Pontos críticos &#8594;</div>
+                <div class="val" id="ptPct">0%</div>
+                <div class="sub" id="ptTxt">—</div>
+                <div class="barra"><i id="ptBarra"></i></div>
+              </div>
+              <div class="rodape-card">
+                <button type="button" class="link-rodape" id="btPontosNao" title="Clique para ver no mapa e na lista SÓ os pontos não coletados">Não coletados: <b class="vermelho" id="ptNao">0</b> &#8594;</button>
+                <button type="button" class="link-rodape" id="btPontosPend" title="Clique para ver só os pontos pendentes">Pendentes: <b id="ptPend">—</b> &#8594;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTROLES DE PERÍODO, CICLO E FILTROS NUM SÓ LUGAR -->
+        <div class="bloco">
+          <div class="linha">
+            <button id="btAtualizar" type="button">Atualizar</button>
+            <button class="sec" id="btSubirExcelTopo" type="button" title="Testar subindo um arquivo Excel (.xlsx)">Subir Excel</button>
+            <span class="status" id="status">Carregando…</span>
+          </div>
+
+          <div class="ciclo-bar">
+            <label for="selCiclo">Ciclo:</label>
+            <select id="selCiclo" class="sel-ciclo" aria-label="Ciclo"><option value="">Ciclo atual de cada área</option></select>
+          </div>
+          <p class="nota" id="avisoCiclo" hidden>Exibindo dados do ciclo selecionado (escolha "Ciclo atual" acima para usar o filtro de período).</p>
+
+          <div class="rotulo">Período dos lançamentos</div>
+          <div class="seg" id="segPer">
+            <button type="button" data-per="semana">Esta semana</button>
+            <button type="button" data-per="passada">Semana passada</button>
+            <button type="button" data-per="mes">Este mês</button>
+            <button type="button" data-per="tudo">Tudo</button>
+          </div>
+
+          <details class="sub-filtros">
+            <summary><span>Filtrar por data, serviço ou supervisor</span> <span id="badgeFiltros" class="badge-filtro" hidden></span></summary>
+            <div class="datas">
+              <label>De <input type="date" id="dtIni"></label>
+              <label>Até <input type="date" id="dtFim"></label>
+            </div>
+            <div class="filtros">
+              <select id="fServico" aria-label="Serviço"><option value="">Todos os serviços</option></select>
+              <select id="fSup" aria-label="Supervisor"><option value="">Todos os supervisores</option></select>
+            </div>
+            <div style="margin-top:8px;text-align:right">
+              <button type="button" class="sec" id="btLimparFiltros" style="padding:3px 9px;font-size:11.5px">Limpar filtros</button>
+            </div>
+          </details>
+
+          <div class="linha botoes">
+            <button class="sec" type="button" id="btSemanal" style="flex:1">Resumo semanal</button>
+            <button class="sec" type="button" id="btProd" style="flex:1">Equipes & Produtividade</button>
+          </div>
+          <div class="linha" style="margin-top:8px">
+            <button class="sec" type="button" id="btEstudioPainel" style="width:100%;border-color:var(--verde);color:var(--verde-esc)">Planejar / Desenhar Rotas</button>
+          </div>
+          <div class="linha" style="margin-top:6px">
+            <a href="dashboard.html" target="_blank" class="bt-dash-bloco">Abrir Painel Gerencial (Dashboard Completo) &#8599;</a>
+          </div>
+        </div>
+
+        <div class="bloco">
+          <h2>Lançamentos no Período (clique para ver)</h2>
+          <div class="cards tres">
+            <button class="card clic" type="button" id="cardLanc"><div class="rot">Lançamentos</div><div class="val" id="exN">0</div><div class="sub" id="exKm">—</div></button>
+            <button class="card clic" type="button" id="cardFora"><div class="rot">Fora da área</div><div class="val laranja" id="exFora">0</div><div class="sub">Ver lista</div></button>
+            <button class="card clic" type="button" id="cardNaoLoc"><div class="rot">Não localizados</div><div class="val cinza" id="exNao">0</div><div class="sub">Praças / outros</div></button>
+          </div>
+          <h2 class="mt">Situação das ruas (tempo desde a capina)</h2>
+          <div class="situ" id="situGeral"></div>
+        </div>
+
+        <div class="bloco">
+          <h2>Áreas Operacionais (clique para detalhes)</h2>
+          <div id="listaAreas"></div>
+        </div>
+
+        <details class="bloco mais" open>
+          <summary>Fonte dos dados e Exportação</summary>
+          <div class="fonte">
+            <label><input type="radio" name="fonte" value="local"> <b>Planilha de Exemplo Completa</b> (já carregada)</label>
+            <label><input type="radio" name="fonte" value="excel"> <b>Arquivo Excel (.xlsx)</b> do computador</label>
+            <label><input type="radio" name="fonte" value="google"> <b>Google Sheets</b> (planilha online)</label>
+          </div>
+          <div class="linha" id="painelExcel" style="margin-top:8px" hidden>
+            <button class="sec" id="btExcel" type="button">Escolher arquivo Excel</button>
+            <input type="file" id="inExcel" accept=".xlsx,.xlsm,.xls" hidden>
+            <span class="status" id="nomeExcel"></span>
+          </div>
+          <div id="painelGoogle" hidden>
+            <label class="campo">Link da planilha <input type="text" id="inLink" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+            <button class="sec" id="btLink" type="button">Usar esta planilha</button>
+          </div>
+          <div class="rotulo" style="margin-top:14px">Exportar dados atuais</div>
+          <div class="linha botoes" style="margin-top:6px">
+            <button class="sec" type="button" data-exp="kmz">KMZ</button>
+            <button class="sec" type="button" data-exp="kml">KML</button>
+            <button class="sec" type="button" data-exp="dxf">DXF (CAD)</button>
+            <button class="sec" type="button" id="btProdExcel">Excel Produtividade</button>
+            <button class="sec" type="button" id="btPowerBI">Excel Power BI</button>
+          </div>
+          <div class="linha" style="margin-top:10px;gap:6px">
+            <a href="dashboard.html#planilha" target="_blank" class="bt-dash-bloco" style="flex:1;border-style:dashed">Planilha e Formulário &#8599;</a>
+            <a href="https://docs.google.com/forms/d/18gb_m-eWLNxLP9u4wFP80hbQaqXewOnSMP0EqsBEiTw/viewform" target="_blank" rel="noopener" class="bt-dash-bloco" style="flex:1;background:#fff">&#128221; Abrir Google Forms &#8599;</a>
+          </div>
+        </details>
+      </section>
+      <section id="detalhe" hidden></section>
+    </div>
+  </aside>
+  <div id="mapa"></div>
+</div>
+
+<!-- CAIXA DO MAPA ENXUTA COM LEGENDA CLICÁVEL -->
+<template id="tplCaixa">
+  <div class="cx-tit"><span>Visão do Mapa</span><button type="button" class="cx-min" aria-label="Recolher">&minus;</button></div>
+  <div class="cx-corpo">
+    <div class="rotulo" style="margin-top:6px">Colorir áreas / ruas por</div>
+    <div class="seg col" id="segModo">
+      <button type="button" data-modo="areas">Divisão das Áreas</button>
+      <button type="button" data-modo="andamento">Andamento do Ciclo (%)</button>
+      <button type="button" data-modo="tempo">Tempo desde a Capina</button>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="ckPontos" checked> Pontos críticos (180)</label>
+      <label><input type="checkbox" id="ckExec" checked> Ruas lançadas</label>
+      <label><input type="checkbox" id="ckFaltam"> Ruas sem registro</label>
+      <label><input type="checkbox" id="ckRotas"> Rotas de coleta dos caminhões</label>
+      <label><input type="checkbox" id="ckFoco"> Focar só na área aberta</label>
+    </div>
+    <div class="legenda" id="legenda"></div>
+  </div>
+</template>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/xlsx.mini.min.js"></script>
+<script src="data/geo.js?v=1104d"></script>
+<script src="data/ruas.js?v=1104d"></script>
+<script src="data/planilha_local.js?v=1104d"></script>
+<script src="js/config.js?v=1104d"></script>
+<script src="js/util.js?v=1104d"></script>
+<script src="js/localizador.js?v=1104d"></script>
+<script src="js/dados.js?v=1104d"></script>
+<script src="js/calculos.js?v=1104d"></script>
+<script src="js/mapa.js?v=1104d"></script>
+<script src="js/painel.js?v=1104d"></script>
+<script src="js/exportar.js?v=1104d"></script>
+<script src="js/importar_geo.js?v=1104d"></script>
+<script src="js/ferramentas_mapa.js?v=1104d"></script>
+<script src="js/ferramentas_extra.js?v=1104d"></script>
+<script src="js/app.js?v=1104d"></script>
+</body>
+</html>
