@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Painel Operacional e Gerencial · Capina e Pontos Críticos · Belém/PA</title>
-  <link rel="stylesheet" href="css/estilo.css?v=1104d" />
+  <link rel="stylesheet" href="css/estilo.css?v=1104j" />
   <style>
     html, body { height: auto; min-height: 100%; overflow-y: auto; background: #f6f8f6; }
     .dash-topo {
@@ -475,31 +475,39 @@
   <!-- ABA 4: EDITOR VISUAL DA PLANILHA (MODO TESTE) -->
   <section id="sec-planilha" class="dash-sec" hidden>
     <div class="seg" id="segPlanForm" style="margin:0 0 12px;max-width:640px">
-      <button type="button" data-sub="planilha" class="on">Planilha (editar)</button>
+      <button type="button" data-sub="conferir" class="on">Conferir lançamentos</button>
+      <button type="button" data-sub="sheets">Planilha Google</button>
       <button type="button" data-sub="forms">Formulário Google</button>
       <button type="button" data-sub="local">Lançar pelo site</button>
+      <button type="button" data-sub="planilha">Planilha de teste</button>
+    </div>
+    <div class="dash-painel" id="containerConferir"></div>
+    <div class="dash-painel" id="containerSheets" hidden>
+      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Planilha Google – Acompanhamento Capina</div><div class="dash-painel-sub">Para editar aqui é preciso estar logado na conta Google com permissão de edição. Depois de editar, clique em Atualizar.</div></div>
+        <a id="lnkSheetsNova" class="sec" href="#" target="_blank" rel="noopener" style="text-decoration:none;padding:6px 11px;border-radius:6px">Abrir em nova aba &#8599;</a></div>
+      <iframe id="ifrSheets" loading="lazy" title="Planilha Google" style="width:100%;height:760px;border:1px solid #e3e8e5;border-radius:8px;background:#fff"></iframe>
     </div>
     <div class="dash-painel" id="containerEditorPlanilha"></div>
     <div class="dash-painel" id="containerForms" hidden>
-      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Formulário Google – Lançamento de Capina</div><div class="dash-painel-sub">As respostas vão para a planilha Google (aba Respostas ao formulário 1). Para ver no mapa, use a fonte Google Sheets e clique em Atualizar.</div></div>
+      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Formulário Google – Lançamento de Capina</div><div class="dash-painel-sub">As respostas vão para a planilha Google (aba Respostas ao formulário 1) e aparecem no mapa e no dashboard para todos depois de Atualizar.</div></div>
         <a id="lnkFormsNova" class="sec" href="#" target="_blank" rel="noopener" style="text-decoration:none;padding:6px 11px;border-radius:6px">Abrir em nova aba &#8599;</a></div>
-      <iframe id="ifrForms" title="Formulário Google" style="width:100%;height:1500px;border:0;border-radius:8px;background:#fff"></iframe>
+      <iframe id="ifrForms" loading="lazy" title="Formulário Google" style="width:100%;height:1500px;border:0;border-radius:8px;background:#fff"></iframe>
     </div>
     <div class="dash-painel" id="containerFormLocal" hidden></div>
   </section>
 </main>
 
 <script src="vendor/xlsx.mini.min.js"></script>
-<script src="data/geo.js?v=1104d"></script>
-<script src="data/ruas.js?v=1104d"></script>
-<script src="data/planilha_local.js?v=1104d"></script>
-<script src="js/config.js?v=1104d"></script>
-<script src="js/util.js?v=1104d"></script>
-<script src="js/localizador.js?v=1104d"></script>
-<script src="js/dados.js?v=1104d"></script>
-<script src="js/calculos.js?v=1104d"></script>
-<script src="js/exportar.js?v=1104d"></script>
-<script src="js/editor_planilha.js?v=1104d"></script>
-<script src="js/dashboard.js?v=1104d"></script>
+<script src="data/geo.js?v=1104j"></script>
+<script src="data/ruas.js?v=1104j"></script>
+<script src="data/planilha_local.js?v=1104j"></script>
+<script src="js/config.js?v=1104j"></script>
+<script src="js/util.js?v=1104j"></script>
+<script src="js/localizador.js?v=1104j"></script>
+<script src="js/dados.js?v=1104j"></script>
+<script src="js/calculos.js?v=1104j"></script>
+<script src="js/exportar.js?v=1104j"></script>
+<script src="js/editor_planilha.js?v=1104j"></script>
+<script src="js/dashboard.js?v=1104j"></script>
 </body>
 </html>

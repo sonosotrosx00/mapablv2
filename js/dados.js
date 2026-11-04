@@ -50,12 +50,13 @@ const Dados = (() => {
   /* ---------- Escolha das abas (o Google devolve a 1ª aba quando o nome não existe: confere as colunas) ---------- */
   function escolher(porNome) {
     const uma = (nomes, ...cols) => { for (const n of nomes) { const t = porNome[n]; if (t && cols.every(c => U.temColuna(t, c))) return t; } return null; };
+    const todas = (nomes, ...cols) => { const vistas = new Set(); return nomes.map(n => porNome[n]).filter(t => { if (!t || !cols.every(c => U.temColuna(t, c))) return false; const k = JSON.stringify([t.cols, t.rows.length, t.rows[0]]); if (vistas.has(k)) return false; vistas.add(k); return true; }); };
     return {
       areas: uma(CFG.abas.areas, "area", "supervisor"),
       capina: uma(CFG.abas.capina, "data", "area", "km"),
-      pontos: uma(CFG.abas.pontos, "ponto", "status"),
+      pontos: todas(CFG.abas.pontos, "ponto", "status"),
       ciclos: uma(CFG.abas.ciclos, "area", "ciclo", "inicio"),
-      lancamentos: CFG.abas.lancamentos.map(n => porNome[n]).filter(t => t && (U.temColuna(t, "rua") || U.temColuna(t, "ponto")))
+      lancamentos: CFG.abas.lancamentos.map(n => { const t = porNome[n]; if (t) t._aba = n; return t; }).filter(t => t && (U.temColuna(t, "rua") || U.temColuna(t, "ponto")))
     };
   }
 
@@ -90,12 +91,14 @@ const Dados = (() => {
         area: U.inteiro(U.campo(o, "area").v), bairro: U.campo(o, "bairro").f, rua: U.campo(o, "rua").f.trim(), de: de.trim(), ate: ate.trim(),
         m: U.num(U.campo(o, "extensao", "metros", "medicao").v), ciclo: U.campo(o, "ciclo").f.trim().toUpperCase(),
         servico: U.servico(U.campo(o, "servico").f), homens: U.inteiro(U.campo(o, "n_de_homens", "no_de_homens", "n_homens", "homens", "numero_de_homens").v),
-        obs: (Object.keys(o._f).filter(k => k.startsWith("obs") && !k.includes("ponto")).map(k => o._f[k]).find(Boolean)) || ""
+        obs: (Object.keys(o._f).filter(k => k.startsWith("obs") && !k.includes("ponto")).map(k => o._f[k]).find(Boolean)) || "",
+        aba: t._aba || "", linha: o._linha + 2, carimbo: U.campo(o, "carimbo").f
       };
     }).filter(r => r.rua);
   }
-  function pontos(tPontos, tabsLanc) {
-    const out = U.objetos(tPontos).map(o => ({ data: U.data(U.campo(o, "data").v), cod: codPonto(U.campo(o, "ponto").f), status: U.norm(U.campo(o, "status", "situacao").f), obs: U.campo(o, "obs").f, linha: o._linha }));
+  function pontos(tabsPontos, tabsLanc) {
+    const out = [];
+    [].concat(tabsPontos || []).forEach((t, k) => U.objetos(t).forEach(o => out.push({ data: U.data(U.campo(o, "data").v) || U.data(U.campo(o, "carimbo").v), cod: codPonto(U.campo(o, "ponto").f), status: U.norm(U.campo(o, "status", "situacao").f), obs: U.campo(o, "obs").f, linha: 10000 * k + o._linha })));
     tabsLanc.forEach((t, k) => U.objetos(t).forEach(o => {
       const cod = codPonto(U.campo(o, "ponto").f); if (!cod) return;
       out.push({ data: U.data(U.campo(o, "data_do_servico", "data").v) || U.data(U.campo(o, "carimbo").v), cod, status: U.norm(U.campo(o, "situacao", "status").f), obs: U.campo(o, "observacao_do_ponto", "obs").f, linha: 100000 * (k + 1) + o._linha });
@@ -112,7 +115,7 @@ const Dados = (() => {
     return {
       areas: areas(t.areas), capina: capina(t.capina), ciclos: ciclos(t.ciclos),
       lancamentos: [].concat(...t.lancamentos.map(lancamentos)), pontos: pontos(t.pontos, t.lancamentos),
-      abas: { areas: !!t.areas, capina: !!t.capina, pontos: !!t.pontos, ciclos: !!t.ciclos, lancamentos: t.lancamentos.length }
+      abas: { areas: !!t.areas, capina: !!t.capina, pontos: t.pontos.length > 0, ciclos: !!t.ciclos, lancamentos: t.lancamentos.length }
     };
   }
 

@@ -52,10 +52,11 @@ const FerramentasExtra = (() => {
       if (!out.length) throw new Error(`CEP ${j.cep} (${rua}, ${j.bairro}) não localizado no mapa`);
       return out;
     }
-    const locais = LOC.sugerirRuas(txt, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true }; });
+    const locais = LOC.sugerirRuas(txt, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true, exata: s.exata }; });
     let ext = [];
-    if (/\d/.test(txt) || !locais.length) {
-      try { ext = (await nominatim(txt + ", Belém, Pará")).map(n => ({ rotulo: n.display_name.split(",").slice(0, 4).join(","), ll: [+n.lat, +n.lon], zoom: 18 })); } catch (e) {}
+    if (/\d/.test(txt) || !locais.some(l => U.norm(l.rotulo) === U.norm(txt))) {
+      const linhasOsm = g => !g ? null : g.type === "LineString" ? [g.coordinates.map(([x, y]) => [y, x])] : g.type === "MultiLineString" ? g.coordinates.map(l => l.map(([x, y]) => [y, x])) : null;
+      try { ext = (await nominatim(txt + ", Belém, Pará", "&polygon_geojson=1")).map(n => ({ rotulo: n.display_name.split(",").slice(0, 4).join(",") + " (OpenStreetMap)", ll: [+n.lat, +n.lon], linhas: linhasOsm(n.geojson), zoom: 17 })); } catch (e) {}
     }
     return [...ext, ...locais];
   }
@@ -89,19 +90,21 @@ const FerramentasExtra = (() => {
     const res = $("buscaRes");
     if (carregando) { res.innerHTML = `<div class="busca-item nota">Procurando…</div>`; res.hidden = false; return; }
     if (!lista.length) { res.innerHTML = `<div class="busca-item nota">Nada encontrado. Tente o nome da rua, o CEP ou "-1.45, -48.48".</div>`; res.hidden = false; return; }
-    res.innerHTML = lista.map((r, i) => `<button type="button" class="busca-item" data-i="${i}">${U.esc(r.rotulo)}${r.rua ? ` <small>rua do mapa</small>` : ""}</button>`).join("");
+    res.innerHTML = lista.map((r, i) => r.osm ? `<button type="button" class="busca-item" data-i="${i}">Procurar "${U.esc(r.osm)}" no mapa da cidade <small>Enter</small></button>`
+      : `<button type="button" class="busca-item" data-i="${i}">${U.esc(r.rotulo)}${r.rua ? ` <small>rua do mapa</small>` : ""}</button>`).join("");
     res.hidden = false;
-    res.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { irPara(lista[+b.dataset.i]); res.hidden = true; });
+    res.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { const r = lista[+b.dataset.i]; if (r.osm) { buscar(r.osm); return; } irPara(r); res.hidden = true; });
   }
   function sugerir(txt) {
     const t = txt.trim(); if (t.length < 3 || lerCoordenada(t) || ehCep(t)) { if (!t) $("buscaRes").hidden = true; return; }
     const lista = LOC.sugerirRuas(t, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true }; });
-    if (lista.length) mostrarResultados(lista);
+    lista.push({ osm: t });
+    mostrarResultados(lista);
   }
   async function buscar(txt) {
     if (!txt.trim()) return;
     mostrarResultados([], true);
-    try { const r = await geocodificar(txt); if (r.length === 1) { irPara(r[0]); $("buscaRes").hidden = true; } else mostrarResultados(r); }
+    try { const r = await geocodificar(txt); if (r.length === 1) { irPara(r[0]); $("buscaRes").hidden = true; } else mostrarResultados(r.map(x => x.rua || x.osm ? x : { ...x, rotulo: x.rotulo })); }
     catch (e) { $("buscaRes").innerHTML = `<div class="busca-item nota">${U.esc(e.message)}</div>`; }
   }
   function irPara(r) {

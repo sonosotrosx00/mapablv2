@@ -5,7 +5,7 @@
   const C = CFG.cores;
 
   let base = null, res = null, situ = null, arqExcel = null;
-  let fonte = U.ler("fonte_novo", PLANILHA_LOCAL ? "local" : "google");
+  let fonte = U.ler("fonte_site", CFG.fonteInicial || (PLANILHA_LOCAL ? "local" : "google"));
   let modoTesteAtivo = U.ler("modo_teste_planilha", true);
 
   /* ---------- Gerador de Gráfico de Rosca (SVG Donut Chart) ---------- */
@@ -156,6 +156,7 @@
     if (!base) return;
     res = Calc.calcular(base, filtros());
     situ = Calc.situacaoRuas(res);
+    if ($("containerConferir") && !$("containerConferir").hidden) montarConferir();
     renderizarAbaCapina();
     renderizarAbaEquipes();
     renderizarAbaPontos();
@@ -786,7 +787,7 @@
     document.querySelectorAll("#dashSegFonte button").forEach(b => {
       b.onclick = () => {
         fonte = b.dataset.fonte;
-        U.guardar("fonte_novo", fonte);
+        U.guardar("fonte_site", fonte);
         atualizarBotoesFonte();
         if (fonte === "excel" && !arqExcel) {
           $("inDashExcel").click();
@@ -801,7 +802,7 @@
       if (e.target.files[0]) {
         arqExcel = e.target.files[0];
         fonte = "excel";
-        U.guardar("fonte_novo", fonte);
+        U.guardar("fonte_site", fonte);
         await U.salvarArq("excel", arqExcel);
         atualizarBotoesFonte();
         carregar();
@@ -869,55 +870,127 @@
     const mostrar = q => {
       sub.forEach(b => b.classList.toggle("on", b.dataset.sub === q));
       $("containerEditorPlanilha").hidden = q !== "planilha"; $("containerForms").hidden = q !== "forms"; $("containerFormLocal").hidden = q !== "local";
+      $("containerConferir").hidden = q !== "conferir"; $("containerSheets").hidden = q !== "sheets";
+      if (q === "sheets" && !$("ifrSheets").src) $("ifrSheets").src = linkPlanilha() + "?rm=minimal";
+      if (q === "conferir") montarConferir();
       if (q === "forms" && !$("ifrForms").src) $("ifrForms").src = (CFG.formulario || "").replace(/\/edit.*$|\/viewform.*$/, "/viewform") + "?embedded=true";
       if (q === "local") montarFormLocal();
     };
     sub.forEach(b => b.onclick = () => mostrar(b.dataset.sub));
     if ($("lnkFormsNova")) $("lnkFormsNova").href = (CFG.formulario || "#");
-    if ((CFG.recursos || {}).formulario === false) document.querySelectorAll('#segPlanForm [data-sub="forms"]').forEach(b => b.hidden = true);
-    if (/forms/.test(location.hash)) { selecionarAba("planilha"); mostrar("forms"); }
+    if ($("lnkSheetsNova")) $("lnkSheetsNova").href = linkPlanilha();
+    const semForms = (CFG.recursos || {}).formulario === false;
+    if (semForms) document.querySelectorAll('#segPlanForm [data-sub="forms"],#segPlanForm [data-sub="local"]').forEach(b => b.hidden = true);
+    mostrar("conferir");
+    if (/forms/.test(location.hash)) selecionarAba("planilha");
+  }
+  /* ---------- Conferir lançamentos: como cada linha da planilha foi lida e link para editar ---------- */
+  const linkPlanilha = () => { const id = Dados.idPlanilha(($("inDashLink") && $("inDashLink").value.trim()) || U.ler("planilha", "") || CFG.planilha); return id ? `https://docs.google.com/spreadsheets/d/${id}/edit` : CFG.planilha; };
+  function linkLinha(e) {
+    const gid = (CFG.abasGid || {})[e.aba];
+    return gid == null || fonte !== "google" ? "" : `${linkPlanilha()}#gid=${gid}&range=A${e.linha}`;
+  }
+  let filtroConf = "";
+  const chaveCarimbo = e => { const m = String(e.carimbo || "").match(/(\d{2})\/(\d{2})\/(\d{4})\s*(\S*)/); return m ? `${m[3]}-${m[2]}-${m[1]} ${m[4]}` : ""; };
+  function montarConferir() {
+    const box = $("containerConferir"); if (!box || !base) return;
+    const tudo = Calc.calcular(base, { ref: dataRef() }).todos.slice().sort((a, b) => chaveCarimbo(b).localeCompare(chaveCarimbo(a)) || (b.data || 0) - (a.data || 0) || b.linha - a.linha);
+    const situ = e => {
+      const s = [];
+      if (!e.loc.ok) s.push(["nao", "Rua não encontrada"]);
+      else if (e.loc.tipo === "trecho") s.push(["ok", "Trecho no mapa"]); else s.push(["aprox", "Trecho aproximado"]);
+      if (e.fora) s.push(["fora", `Fora do planejado (${U.esc(e.supervisor)} é da Área ${e.areaSup})`]);
+      if (e.areaDivergente) s.push(["aviso", `Rua fica na Área ${e.areaMapa}, informada Área ${e.area}`]);
+      if (e.loc.ok && e.loc.tipo === "trecho" && e.m && e.loc.metros && (e.loc.metros > e.m * 2 + 50 || e.m > e.loc.metros * 2 + 50)) s.push(["aviso", `Informado ${U.fmtKm(e.m)}, trecho no mapa ${U.fmtKm(e.loc.metros)}`]);
+      return s;
+    };
+    const lista = tudo.map(e => ({ e, s: situ(e) }));
+    const conta = k => lista.filter(x => x.s.some(([t]) => t === k)).length;
+    const filtrada = lista.filter(x => !filtroConf || x.s.some(([t]) => t === filtroConf));
+    const cor = { ok: "#1e7b34", aprox: "#0b5d26", nao: "#7b8794", fora: "#e8590c", aviso: "#b26a00" };
+    const fontes = { google: "planilha Google", local: "planilha de exemplo", excel: "arquivo Excel" };
+    box.innerHTML = `
+      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Conferir lançamentos</div><div class="dash-painel-sub">Todos os lançamentos da ${fontes[fonte] || "planilha"} (Forms + aba Executado), do mais recente para o mais antigo, e como o mapa leu cada um.${fonte !== "google" ? " Para editar, escolha a fonte Google Sheets." : ""}</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sec" id="btConfAtualizar">Atualizar</button><a class="sec" href="${linkPlanilha()}" target="_blank" rel="noopener" style="text-decoration:none;padding:6px 11px;border-radius:6px">Abrir planilha &#8599;</a></div></div>
+      <div class="seg" id="segConf" style="margin:4px 0 10px;flex-wrap:wrap">
+        <button type="button" data-f="" class="${!filtroConf ? "on" : ""}">Todos (${lista.length})</button>
+        <button type="button" data-f="fora" class="${filtroConf === "fora" ? "on" : ""}">Fora do planejado (${conta("fora")})</button>
+        <button type="button" data-f="aprox" class="${filtroConf === "aprox" ? "on" : ""}">Trecho aproximado (${conta("aprox")})</button>
+        <button type="button" data-f="nao" class="${filtroConf === "nao" ? "on" : ""}">Rua não encontrada (${conta("nao")})</button>
+        <button type="button" data-f="aviso" class="${filtroConf === "aviso" ? "on" : ""}">Conferir (${conta("aviso")})</button>
+      </div>
+      <div class="tab-wrap"><table class="tab-exec conf-tab"><thead><tr><th>Lançado em</th><th>Data do serviço</th><th>Supervisor</th><th>Área</th><th>Rua / perímetro</th><th>m</th><th>Serviço</th><th>No mapa</th><th></th></tr></thead><tbody>
+        ${filtrada.map(({ e, s }) => `<tr>
+          <td>${U.esc((e.carimbo || "").slice(0, 16)) || `<small>${U.esc(e.aba)}</small>`}</td><td>${U.fmtData(e.data)}</td><td>${U.esc(e.supervisor || "—")}</td><td>${e.area || (e.areaMapa ? `<small>(${e.areaMapa})</small>` : "—")}</td>
+          <td><b>${U.esc(e.rua)}</b><br><small>${U.esc(e.de || "—")} / ${U.esc(e.ate || "—")}</small></td><td>${e.m ? U.fmt(e.m, 0) : "—"}</td><td>${U.esc(e.servico || "")}</td>
+          <td>${s.map(([t, txt]) => `<span class="conf-et" style="color:${cor[t]}">${txt}</span>`).join("")}</td>
+          <td class="conf-acoes"><a href="index.html#lanc=${encodeURIComponent(e.aba + "|" + e.linha)}" target="_blank">Ver no mapa</a>${linkLinha(e) ? `<a href="${linkLinha(e)}" target="_blank" rel="noopener">Editar</a>` : ""}</td></tr>`).join("") || `<tr><td colspan="9">Nenhum lançamento nesta situação.</td></tr>`}
+      </tbody></table></div>`;
+    box.querySelectorAll("#segConf [data-f]").forEach(b => b.onclick = () => { filtroConf = b.dataset.f; montarConferir(); });
+    $("btConfAtualizar").onclick = () => carregar();
   }
   function montarFormLocal() {
     const box = $("containerFormLocal"); if (box.dataset.ok) return; box.dataset.ok = "1";
+    const EF = CFG.envioForms || {}, OP = EF.opcoes || {};
     const areas = (base && base.areas.length ? base.areas : CFG.areasPadrao).slice().sort((a, b) => a.area - b.area);
     const nomesRuas = (typeof LOC !== "undefined" && LOC.nomesTodos) ? [...new Set(LOC.nomesTodos())].sort() : [];
     const opc = l => l.map(x => `<option>${U.esc(x)}</option>`).join("");
+    const listaAreas = (OP.area || areas.map(a => String(a.area)));
+    const supDe = n => (areas.find(a => String(a.area) === String(n)) || {}).supervisor || "";
     box.innerHTML = `
-      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Lançamento de Capina – Executado</div><div class="dash-painel-sub">Mesmas perguntas do formulário. O lançamento entra na aba Executado da planilha de teste e aparece no mapa e no dashboard.</div></div></div>
+      <div class="dash-painel-cab"><div><div class="dash-painel-tit">Lançamento de Capina – Executado</div><div class="dash-painel-sub">Mesmas perguntas do Google Forms. O envio vai para a planilha Google (aba Respostas ao formulário 1) e aparece para todos depois de Atualizar.</div></div></div>
       <form id="formLocal" class="form-local">
         <label>Data do serviço *<input type="date" name="data" required value="${U.ymd(new Date())}"></label>
-        <label>Lançado por<select name="lancado">${opc(["Supervisor", "CCO", "Planejamento", "Zeladoria"])}</select></label>
-        <label>Área<select name="area"><option value=""></option>${areas.map(a => `<option value="${a.area}">Área ${a.area} · ${U.esc(a.supervisor)}</option>`).join("")}</select></label>
-        <label>Supervisor<select name="supervisor"><option value=""></option>${opc([...new Set(areas.map(a => a.supervisor))])}</select></label>
-        <label>Equipe<input type="text" name="equipe" placeholder="Ex.: CR 07-A"></label>
+        <label>Lançado por<select name="lancado"><option value=""></option>${opc(OP.lancado || [])}</select></label>
+        <label>Área<select name="area"><option value=""></option>${listaAreas.map(n => `<option value="${U.esc(n)}">Área ${U.esc(n)}${supDe(n) ? " · " + U.esc(supDe(n)) : ""}</option>`).join("")}</select></label>
+        <label>Supervisor<select name="supervisor"><option value=""></option>${opc(OP.supervisor || [...new Set(areas.map(a => a.supervisor))])}</select></label>
+        <label>Equipe<input type="text" name="equipe" placeholder="Ex.: CR 21"></label>
         <label>Bairro<input type="text" name="bairro"></label>
         <label class="largo">Rua *<input type="text" name="rua" list="dlRuas" required placeholder="Comece a digitar o nome da rua"></label>
         <label>Perímetro - de<input type="text" name="de" list="dlRuas"></label>
         <label>Perímetro - até<input type="text" name="ate" list="dlRuas"></label>
         <label>Extensão (m)<input type="number" name="metros" min="0" step="1"></label>
-        <label>Ciclo<input type="text" name="ciclo" placeholder="Ex.: C04"></label>
-        <label>Serviço *<select name="servico" required>${opc(CFG.servicos || ["Capinação e raspagem"])}</select></label>
+        <label>Ciclo<select name="ciclo"><option value=""></option>${opc(OP.ciclo || [])}</select></label>
+        <label>Serviço *<select name="servico" required>${opc(OP.servico || CFG.servicos || ["Capinação e raspagem"])}</select></label>
         <label>Nº de homens<input type="number" name="homens" min="0" step="1"></label>
         <label class="largo">Observação<input type="text" name="obs"></label>
         <datalist id="dlRuas">${opc(nomesRuas)}</datalist>
-        <div class="largo" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="submit">Enviar lançamento</button><span id="formLocalMsg" class="sub"></span></div>
+        <div class="largo" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="submit" id="btFormLocal">Enviar lançamento</button><span id="formLocalMsg" class="sub"></span></div>
       </form>`;
-    const f = $("formLocal");
-    f.area.onchange = () => { const a = areas.find(x => String(x.area) === f.area.value); if (a) f.supervisor.value = a.supervisor; };
-    f.supervisor.onchange = () => { const a = areas.find(x => x.supervisor === f.supervisor.value); if (a && !f.area.value) f.area.value = a.area; };
-    f.onsubmit = ev => {
+    const f = $("formLocal"), msg = (t, cor) => { const m = $("formLocalMsg"); m.innerHTML = t; m.style.color = cor || ""; };
+    f.area.onchange = () => { const s = supDe(f.area.value); if (s && (OP.supervisor || []).concat(s).includes(s)) f.supervisor.value = s; };
+    f.supervisor.onchange = () => { const a = areas.find(x => x.supervisor === f.supervisor.value); if (a && !f.area.value) f.area.value = String(a.area); };
+    const linhasForms = async () => { const t = (await Dados.lerGoogle(U.ler("planilha", "") || CFG.planilha))["Respostas ao formulário 1"]; return t ? t.rows.length : null; };
+    f.onsubmit = async ev => {
       ev.preventDefault();
-      const v = Object.fromEntries(new FormData(f).entries()), agora = new Date();
-      EditorPlanilha.adicionarLancamento({
-        "Carimbo de data/hora": U.ymd(agora) + " " + agora.toTimeString().slice(0, 8), "Data do serviço": v.data, "Lançado por": v.lancado, "Supervisor": v.supervisor, "Equipe": v.equipe,
-        "Área": v.area ? +v.area : "", "Bairro": v.bairro, "Rua": v.rua, "Perímetro - de": v.de, "Perímetro - até": v.ate, "Extensão (m)": v.metros ? +v.metros : "",
-        "Ciclo": v.ciclo, "Serviço": v.servico, "Nº de homens": v.homens ? +v.homens : "", "Observação": v.obs
-      });
-      $("formLocalMsg").textContent = "Lançamento enviado às " + agora.toLocaleTimeString("pt-BR") + ".";
-      ["rua", "de", "ate", "metros", "obs"].forEach(k => f[k].value = "");
+      if (!EF.acao || !EF.campos) { msg("Envio pelo site desligado (falta o endereço do Forms em config.js).", "var(--vermelho)"); return; }
+      const v = Object.fromEntries(new FormData(f).entries()), C = EF.campos, p = new URLSearchParams();
+      const [ano, mes, dia] = v.data.split("-");
+      p.append(`entry.${C.data}_year`, ano); p.append(`entry.${C.data}_month`, String(+mes)); p.append(`entry.${C.data}_day`, String(+dia));
+      ["lancado", "supervisor", "equipe", "area", "bairro", "rua", "de", "ate", "metros", "ciclo", "servico", "homens", "obs"].forEach(k => { if (C[k] && v[k] !== undefined && String(v[k]).trim() !== "") p.append(`entry.${C[k]}`, String(v[k]).trim()); });
+      const bt = $("btFormLocal"); bt.disabled = true; msg("Enviando…");
+      let antes = null; try { antes = await linhasForms(); } catch (e) { /* confere depois */ }
+      try { await fetch(EF.acao, { method: "POST", mode: "no-cors", body: p }); }
+      catch (e) { bt.disabled = false; msg("Sem conexão: o lançamento não foi enviado. Tente de novo.", "var(--vermelho)"); return; }
+      msg("Enviado. Conferindo na planilha…");
+      let ok = false;
+      for (let i = 0; i < 6 && !ok && antes != null; i++) { await new Promise(r => setTimeout(r, 3000)); try { const n = await linhasForms(); ok = n != null && n > antes; } catch (e) { /* tenta de novo */ } }
+      bt.disabled = false;
+      const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      if (ok) {
+        const linha = antes + 2, lnk = `index.html#lanc=${encodeURIComponent("Respostas ao formulário 1|" + linha)}`;
+        msg(`&#10004; ${U.esc(v.rua)} registrado na planilha às ${hora} (linha ${linha}). <a href="${lnk}" target="_blank">Ver no mapa</a>` +
+          (fonte !== "google" ? ` · <b>Este painel está mostrando outra fonte; escolha Google Sheets para ver o lançamento.</b>` : ""), "var(--verde-esc)");
+        ["rua", "de", "ate", "metros", "obs"].forEach(k => f[k].value = "");
+        U.guardar("ultimo_envio", Date.now());   // o mapa aberto em outra aba lê a planilha de novo
+        if (fonte === "google") carregar();
+      } else msg(`Enviado às ${hora}, mas ainda não apareceu na planilha. Clique em Atualizar daqui a 1 minuto; se não aparecer, lance pelo Formulário Google.`, "var(--laranja)");
     };
   }
 
   iniciarEventos();
   carregar();
+  let ultimaLeituraDash = Date.now();
+  setInterval(() => { if (fonte === "google" && !document.hidden && Date.now() - ultimaLeituraDash > 110000) { ultimaLeituraDash = Date.now(); carregar(); } }, 30000);
+  window.addEventListener("storage", ev => { if (ev.key === "capina_ultimo_envio" && fonte === "google") carregar(); });
 })();

@@ -5,7 +5,7 @@ const App = (() => {
   const TODAS = ["emdia", "vencendo", "vencido", "semrec", "nunca"];
 
   let base = null, res = null, situ = null, arqExcel = null;
-  let fonte = U.ler("fonte_novo", PLANILHA_LOCAL ? "local" : "google");
+  let fonte = U.ler("fonte_site", CFG.fonteInicial || (PLANILHA_LOCAL ? "local" : "google"));
   const ui = {
     modo: U.ler("modo", "areas"),
     mostrar: U.ler("mostrar", { pontos: true, exec: true, faltam: false, rotas: false }),
@@ -232,7 +232,7 @@ const App = (() => {
     $("nomeExcel").textContent = arqExcel ? arqExcel.name : "";
   }
   async function escolherExcel() {
-    fonte = "excel"; U.guardar("fonte_novo", fonte); aplicarFonte();
+    fonte = "excel"; U.guardar("fonte_site", fonte); aplicarFonte();
     if (window.showOpenFilePicker) {
       try { const [h] = await showOpenFilePicker({ types: [{ description: "Planilha Excel", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx", ".xlsm"] } }] }); arqExcel = h; await idb("put", h); aplicarFonte(); carregar(); } catch (e) {}
     } else $("inExcel").click();
@@ -244,6 +244,11 @@ const App = (() => {
     const params = new URLSearchParams(h);
     if (params.has("area")) abrirArea(+params.get("area"), true);
     else if (params.has("ponto")) abrirPonto(params.get("ponto"), true);
+    else if (params.has("lanc")) {
+      const [aba, ln] = params.get("lanc").split("|"), achar = () => res.visiveis.find(x => x.aba === aba && String(x.linha) === ln);
+      let e = achar(); if (!e) { ui.ciclo = ""; periodo("tudo"); e = achar(); }
+      if (e) abrirExec(e.idx);
+    }
     else if (params.has("equipe")) abrirEquipe(params.get("equipe"));
     else if (params.has("filtroPonto")) filtrarPonto(params.get("filtroPonto"), true);
     else if (params.has("estudio") && window.FerramentasMapa) FerramentasMapa.abrirEstudioPainel();
@@ -286,13 +291,14 @@ const App = (() => {
     $("cardLanc").onclick = () => abrirLista("lancamentos");
     $("cardFora").onclick = () => abrirLista("fora");
     $("cardNaoLoc").onclick = () => abrirLista("naoloc");
+    if ($("cardAprox")) $("cardAprox").onclick = () => abrirLista("aprox");
     document.querySelectorAll("[data-exp]").forEach(b => b.onclick = () => res && Exportar.arquivo(b.dataset.exp, res));
     if ($("btProdExcel")) $("btProdExcel").onclick = () => res && Exportar.produtividade(res);
     $("btPowerBI").hidden = !CFG.botaoPowerBI;
     $("btPowerBI").onclick = () => base && Exportar.powerbi(base, dataRef());
-    document.querySelectorAll("input[name=fonte]").forEach(r => r.onchange = () => { fonte = r.value; U.guardar("fonte_novo", fonte); aplicarFonte(); carregar(); });
+    document.querySelectorAll("input[name=fonte]").forEach(r => r.onchange = () => { fonte = r.value; U.guardar("fonte_site", fonte); aplicarFonte(); carregar(); });
     $("btExcel").onclick = escolherExcel;
-    $("inExcel").onchange = e => { arqExcel = e.target.files[0] || null; fonte = "excel"; U.guardar("fonte_novo", fonte); aplicarFonte(); carregar(); };
+    $("inExcel").onchange = e => { arqExcel = e.target.files[0] || null; fonte = "excel"; U.guardar("fonte_site", fonte); aplicarFonte(); carregar(); };
     $("inLink").value = U.ler("planilha", "") || CFG.planilha;
     $("btLink").onclick = () => { U.guardar("planilha", $("inLink").value.trim()); carregar(); };
     marcarPeriodo("tudo");
@@ -305,13 +311,20 @@ const App = (() => {
     aplicarHashUrl();
     window.addEventListener("hashchange", aplicarHashUrl);
     window.addEventListener("storage", ev => {
-      if (ev.key === "capina_planilha_editada_teste" || ev.key === "capina_fonte_novo") carregar();
+      if (ev.key === "capina_fonte_site") { fonte = U.ler("fonte_site", fonte); aplicarFonte(); carregar(); }
+      else if (ev.key === "capina_planilha_editada_teste" || ev.key === "capina_ultimo_envio") carregar();
     });
+    // planilha Google: lê de novo a cada 2 minutos com a aba aberta, e ao voltar para a aba
+    let ultimaLeitura = Date.now();
+    const releitura = () => { if (fonte === "google" && !document.hidden && Date.now() - ultimaLeitura > 110000 && !$("btAtualizar").disabled) { ultimaLeitura = Date.now(); carregar(); } };
+    setInterval(releitura, 30000);
+    document.addEventListener("visibilitychange", releitura);
+    $("btAtualizar").addEventListener("click", () => { ultimaLeitura = Date.now(); });
   }
 
   function usarPlanilhaEditada() {
     fonte = "local";
-    U.guardar("fonte_novo", "local");
+    U.guardar("fonte_site", "local");
     aplicarFonte();
     carregar();
   }

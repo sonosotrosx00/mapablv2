@@ -31,6 +31,7 @@ const Painel = (() => {
     $("exKm").textContent = U.fmtKm(v.reduce((s, e) => s + e.metros, 0));
     $("exFora").textContent = v.filter(e => e.fora).length;
     $("exNao").textContent = v.filter(e => !e.loc.ok).length;
+    if ($("exAprox")) $("exAprox").textContent = v.filter(e => e.loc.ok && e.loc.tipo !== "trecho").length;
     $("mini").innerHTML = `<span>${res.ciclo ? "Ciclo " + U.esc(res.ciclo) : temCiclo ? "Ciclo atual" : "Executado"} <b>${U.fmt(pk, 1)}%</b></span><span>Falta <b>${U.fmt(Math.max(res.totPlano - res.totFeito, 0) / 1000, 0)} km</b></span><span>Pontos <b>${col}/${np}</b></span>`;
 
     const fAtivos = [$("dtIni").value || $("dtFim").value ? "Datas" : "", $("fServico").value ? "Serviço" : "", $("fSup").value ? "Supervisor" : ""].filter(Boolean);
@@ -93,7 +94,8 @@ const Painel = (() => {
     const feitas = new Set(trab.map(r => r.k)), todas = ui.situAtivas.size === SITU_ORD.length;
     const nunca = Object.entries(Calc.RUAS_AREA[n] || {}).filter(([k]) => !feitas.has(k)).map(([, r]) => ({ nome: r.nome, total: r.total, feito: 0, s: "nunca", dias: null, ult: null }));
     const ruas = trab.filter(r => ui.situAtivas.has(r.s)).sort((x, y) => (y.ult || 0) - (x.ult || 0)).concat(!todas && ui.situAtivas.has("nunca") ? nunca.sort((x, y) => y.total - x.total) : []);
-    const exec = a.exec.slice().sort((x, y) => (y.data || 0) - (x.data || 0));
+    // lançamentos desta área + os que foram pintados nesta área mas contam em outra (área informada diferente)
+    const exec = a.exec.concat(res.visiveis.filter(e => e.areaRef !== a.area && (e.areaMapa === a.area || e.ruaArea === a.area))).sort((x, y) => (y.data || 0) - (x.data || 0));
 
     // Equipes que atuaram nesta área
     const eqsArea = [...new Set(a.exec.map(e => e.equipe).filter(Boolean))].sort();
@@ -146,7 +148,7 @@ const Painel = (() => {
           ${ruas.slice(0, 80).map(r => `<tr><td class="quebra">${U.esc(r.nome)}<br>${chipSitu(r.s)}</td><td>${U.fmtKm(Math.min(r.feito, r.total || r.feito))}</td><td>${r.total ? U.fmtKm(r.total) : "—"}</td><td><b>${r.total ? U.fmtPct(Math.min(r.feito, r.total) / r.total * 100) + "%" : "—"}</b></td><td>${r.ult ? U.fmtData(r.ult).slice(0,5) + `<br>há ${r.dias} dias` : "—"}</td></tr>`).join("")}
           </tbody></table>${ruas.length > 80 ? `<p class="nota">Mostrando 80 de ${ruas.length} ruas.</p>` : ""}` : `<p class="nota">Nenhuma rua nesta situação.</p>`}
         </div>
-        ${exec.length ? `<div class="bloco"><h2>Lançamentos na área (${exec.length})</h2><div class="hist">${exec.slice(0, 30).map(e => `<div><a href="#" class="link" data-exec="${e.idx}" style="${e.fora ? "color:var(--laranja)" : ""}">${U.esc(e.rua)}</a><span>${U.fmtData(e.data).slice(0,5)} · ${e.metros ? U.fmtKm(e.metros) : "—"}</span></div>`).join("")}</div></div>` : ""}
+        ${exec.length ? `<div class="bloco"><h2>Lançamentos na área (${exec.length})</h2><div class="hist">${exec.slice(0, 30).map(e => `<div><a href="#" class="link" data-exec="${e.idx}" style="${e.fora ? "color:var(--laranja)" : ""}">${U.esc(e.rua)}</a><span>${U.fmtData(e.data).slice(0,5)} · ${e.metros ? U.fmtKm(e.metros) : "—"}${e.areaRef !== a.area ? `<br><small style="color:var(--laranja)">conta na Área ${e.areaRef}</small>` : ""}</span></div>`).join("")}</div></div>` : ""}
       </div>
 
       <!-- ABA 3: PONTOS CRÍTICOS & ROTA -->
@@ -233,6 +235,15 @@ const Painel = (() => {
     `, manter);
   }
 
+  // Forms de pontos (se configurado) já com o ponto preenchido; senão, a planilha na Aba Pontos
+  function linkRegistrarPonto(p) {
+    if (CFG.formularioPontos) {
+      const base = CFG.formularioPontos.replace(/\/edit.*$|\/viewform.*$/, "/viewform");
+      const txt = (window.OPCOES_PONTOS || {})[p.cod] || p.cod;
+      return CFG.formularioPontosCampoPonto ? `${base}?usp=pp_url&entry.${CFG.formularioPontosCampoPonto}=${encodeURIComponent(txt)}` : base;
+    }
+    return CFG.planilhaAbaPontos || "";
+  }
   function ponto(cod, res, manter) {
     const p = GEO.pontos.find(x => x.cod === cod); if (!p) return;
     const r = res.pontos[cod], s = Calc.statusPonto(r), a = res.porArea[p.area] || {}, [lat, lng] = p.ll;
@@ -248,6 +259,7 @@ const Painel = (() => {
       <div class="linha botoes">
         <button type="button" id="btSvPonto">&#129485; Ver no Street View</button>
         <a class="sec" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener" style="text-decoration:none">Abrir no Google Maps &rarr;</a>
+        ${linkRegistrarPonto(p) ? `<a href="${linkRegistrarPonto(p)}" target="_blank" rel="noopener" style="text-decoration:none" class="bt-link">Registrar coleta &#8599;</a>` : ""}
         <button class="sec" type="button" data-filtro-ponto="nao">Ver todos Não Coletados</button>
       </div></div>`, manter);
     const btSv = $("btSvPonto");
@@ -261,7 +273,9 @@ const Painel = (() => {
     mostrar(`
       <div class="det-cab" style="padding-bottom:12px"><div class="tipo">${U.esc(e.servico) || "Serviço executado"}</div><h3>${U.esc(e.rua)}</h3>
         <div class="sub">${e.de || e.ate ? `${U.esc(e.de) || "—"} / ${U.esc(e.ate) || "—"}` : "Sem perímetro"}</div>
-        <div style="margin-top:10px">${e.fora ? `<span class="chip" style="background:${C.exec.fora}">Fora da área do supervisor</span>` : `<span class="chip coletado">Dentro do planejado</span>`}</div></div>
+        <div style="margin-top:10px">${e.fora ? `<span class="chip" style="background:${C.exec.fora}">Fora da área do supervisor</span>` : `<span class="chip coletado">Dentro do planejado</span>`}</div>
+        ${e.areaDivergente ? `<p class="nota" style="color:var(--laranja);margin-top:8px">A rua fica na Área ${e.areaMapa}, mas no lançamento foi informada a Área ${e.area}. Os metros contam na Área ${e.areaRef}; corrija a Área na planilha se estiver errada.</p>` : ""}
+        ${e.loc.ok && e.loc.tipo === "trecho" && e.m && e.loc.metros && (e.loc.metros > e.m * 2 + 50 || e.m > e.loc.metros * 2 + 50) ? `<p class="nota" style="color:var(--laranja);margin-top:6px">Os metros informados (${U.fmtKm(e.m)}) estão bem diferentes do trecho entre as ruas do perímetro no mapa (${U.fmtKm(e.loc.metros)}). Confira o perímetro ou a extensão.</p>` : ""}</div>
       ${e.loc.ok ? `<div class="bloco"><label class="ckline"><input type="checkbox" id="ckSoLanc" ${ui.soLanc ? "checked" : ""}> Mostrar só este lançamento no mapa</label>
         <div class="linha botoes" style="margin-top:8px">
           <button class="sec" type="button" id="btCentrar">Centralizar no trecho</button>

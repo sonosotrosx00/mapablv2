@@ -73,9 +73,11 @@ const Calc = (() => {
       const loc = localizar(r, areaSup);
       const areaMapa = r._areaMapa !== undefined ? r._areaMapa : (loc.ok ? LOC.areaDoTrecho(loc.linhas, AREAS_POLY) : null);
       const areaRef = r.area || areaMapa;
+      // área informada que o trecho no mapa nem toca (ex.: informou Área 1 numa rua da Área 7); ruas de divisa não contam
+      const divergente = !!(r.area && areaMapa && r.area !== areaMapa && AREAS_POLY[r.area] && !loc.linhas.some(l => l.some(pt => LOC.pontoNoPoligono(pt, AREAS_POLY[r.area]))));
       const capina = !r.servico || CFG.servicoCapina.test(r.servico);
       const cic = cicloDaData(base.ciclos, areaRef, r.data);
-      return { ...r, idx: i, loc, areaSup, areaMapa, areaRef, fora: !!(areaSup && areaRef && areaSup !== areaRef), capina,
+      return { ...r, idx: i, loc, areaSup, areaMapa, areaRef, fora: !!(areaSup && ((areaRef && areaSup !== areaRef) || (divergente && areaMapa !== areaSup))), areaDivergente: divergente, capina,
                metros: metrosConsiderados(r, loc), cicloCalc: cic ? cic.ciclo : (r.ciclo || "") };
     });
     const naSelecao = e => f.ciclo ? e.cicloCalc === f.ciclo : noPeriodo(e.data);

@@ -6,7 +6,7 @@ window.CFG = {
   abas: {
     areas:   ["Areas"],
     capina:  ["Capina"],
-    pontos:  ["Pontos", "Aba Pontos"],
+    pontos:  ["Pontos", "Aba Pontos", "Respostas Pontos", "Respostas ao formulário 2"],   // todas as que existirem são somadas (vale a data mais recente de cada ponto)
     ciclos:  ["Ciclos"],
     lancamentos: ["Executado", "Respostas ao formulário 1"]   // todas as que existirem são somadas
   },
@@ -34,6 +34,33 @@ window.CFG = {
     formulario: true        // aba Formulário no Dashboard
   },
   formulario: "https://docs.google.com/forms/d/18gb_m-eWLNxLP9u4wFP80hbQaqXewOnSMP0EqsBEiTw/viewform",
+
+  // de onde o site lê os dados ao abrir: "google" (planilha online, igual para todos), "local" (planilha de exemplo) ou "excel"
+  fonteInicial: "google",
+
+  // "Lançar pelo site" envia a resposta para o mesmo Google Forms (cai na aba Respostas ao formulário 1).
+  // Os números são os códigos de cada pergunta do Forms. Se uma pergunta for apagada ou recriada no Forms, o código muda.
+  envioForms: {
+    acao: "https://docs.google.com/forms/d/e/1FAIpQLSfgBvNxDUn_CA0jCLPMfCZtkh-lVZLC3HNM-WZgI2KsnkvjYg/formResponse",
+    campos: { data: 1205390462, lancado: 1469425316, supervisor: 1103975048, equipe: 803072768, area: 525839261, bairro: 1099854162, rua: 988650721, de: 1531878514, ate: 713520689, metros: 2017333993, ciclo: 380890307, servico: 117524946, homens: 1623042553, obs: 1468341072 },
+    // opções iguais às do Forms (lista suspensa / múltipla escolha só aceita estes valores)
+    opcoes: {
+      lancado: ["Supervisor", "CCO", "Planejamento", "Zeladoria"],
+      supervisor: ["Paulo", "Nailson", "Giancarlo", "Bianca", "Plycian", "Juliana", "Denis", "Renan", "João", "Rafael"],
+      area: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      ciclo: ["C01", "C02", "C03", "C04"],
+      servico: ["Capinação e raspagem", "Roçagem", "Pintura", "Mutirão", "Varrição", "Limpeza geral", "Caiação", "Retirada de produção", "Outro"]
+    }
+  },
+
+  // Formulário de coleta dos pontos críticos (opcional). Deixe "" enquanto não existir.
+  // campoPonto = código da pergunta "Ponto" (para o site já abrir o Forms com o ponto preenchido).
+  formularioPontos: "",
+  formularioPontosCampoPonto: "",
+  // enquanto não houver o Forms de pontos, o botão "Registrar coleta" abre a planilha na Aba Pontos (precisa ter permissão de edição)
+  // código (gid) de cada aba na planilha Google, para os botões "Editar" abrirem a aba e a linha certas
+  abasGid: { "Respostas ao formulário 1": 1668112376, "Executado": 760010778, "Aba Pontos": 426155365, "Ciclos": 1095866728, "Areas": 1144158478, "Capina": 0 },
+  planilhaAbaPontos: "https://docs.google.com/spreadsheets/d/11Nv8BAe6Nrzqt4yr305NSoYya0MTwjTDdBtknYHRLpE/edit#gid=426155365",
   // servidores públicos de rota (OpenStreetMap). Carro e a pé.
   rotas: { carro: "https://routing.openstreetmap.de/routed-car/route/v1/driving/", pe: "https://routing.openstreetmap.de/routed-foot/route/v1/foot/" },
   servicos: ["Capinação e raspagem", "Roçagem", "Pintura", "Mutirão", "Varrição", "Limpeza geral", "Caiação", "Retirada de produção", "Limpeza da praia", "Programação SIPAT", "Outro"],

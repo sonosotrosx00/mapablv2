@@ -48,7 +48,7 @@ const EditorPlanilha = (() => {
   function salvarEAplicar(container) {
     if (!wbEditavel) return;
     U.guardar("planilha_editada_teste", wbEditavel);
-    U.guardar("fonte_novo", "local");
+    U.guardar("fonte_site", "local");
     if (onSalvarCallback) onSalvarCallback(wbEditavel);
     const av = container && container.querySelector("#avisoSalvoPlanilha");
     if (av) {
@@ -146,7 +146,7 @@ const EditorPlanilha = (() => {
             ${temEdicao ? `<span class="st-pill st-ok">Com edições ativas no site</span>` : `<span class="st-pill st-neutral">Dados originais</span>`}
           </div>
           <div style="font-size:12px;color:var(--cinza);margin-top:3px">
-            Edite qualquer célula abaixo, adicione novas ruas lançadas ou mude o status de pontos críticos. Ao clicar em <b>"Aplicar alterações"</b>, o Mapa e o Dashboard atualizam na hora.
+            Cópia da planilha de exemplo para simular lançamentos. As edições ficam só neste navegador e não vão para a planilha Google. Para lançar de verdade, use o Formulário Google ou Lançar pelo site.
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
