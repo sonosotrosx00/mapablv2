@@ -8,7 +8,7 @@ const App = (() => {
   let fonte = U.ler("fonte_site", CFG.fonteInicial || (PLANILHA_LOCAL ? "local" : "google"));
   const ui = {
     modo: U.ler("modo", "areas"),
-    mostrar: U.ler("mostrar", { pontos: true, exec: true, faltam: false, rotas: false }),
+    mostrar: U.ler("mostrar", { pontos: true, exec: true, faltam: false, rotas: false, recl: true }),
     focoLigado: U.ler("foco", false), foco: null, areaAberta: null,
     sel: null, situAtivas: new Set(TODAS), soLanc: false, aberto: null,
     ciclo: "",
@@ -73,7 +73,9 @@ const App = (() => {
     situ = Calc.situacaoRuas(res);
     sincronizarCiclo();
     ui.foco = ui.focoLigado ? ui.areaAberta : null;
+    if (typeof Reclamacoes !== "undefined") Reclamacoes.preparar(base, res);
     Mapa.render(res, ui, situ);
+    if (typeof Reclamacoes !== "undefined") { Reclamacoes.desenhar(ui); Reclamacoes.resumo(); }
     Painel.resumo(res, situ, ui);
     reabrir();
   }
@@ -90,14 +92,18 @@ const App = (() => {
     else if (a.tipo === "fora") Painel.fora(res);
     else if (a.tipo === "naoloc") Painel.naoLoc(res);
     else if (a.tipo === "aprox") Painel.aprox(res);
+    else if (a.tipo === "rua" && typeof ConsultaRua !== "undefined") ConsultaRua.render(a.id.k, a.id.area);
+    else if (a.tipo === "reclamacoes" && typeof Reclamacoes !== "undefined") Reclamacoes.painel(res);
+    else if (a.tipo === "consultaBusca") { /* tela de busca: mantém o que foi digitado */ }
     else if (a.tipo === "estudio" && window.FerramentasMapa) FerramentasMapa.abrirEstudioPainel();
     else if ((a.tipo === "camadas" || a.tipo === "trajeto") && window.FerramentasExtra) FerramentasExtra.reabrir(a.tipo);
   }
-  function redesenharMapa() { ui.foco = ui.focoLigado ? ui.areaAberta : null; Mapa.render(res, ui, situ); }
+  function redesenharMapa() { ui.foco = ui.focoLigado ? ui.areaAberta : null; Mapa.render(res, ui, situ); if (typeof Reclamacoes !== "undefined") Reclamacoes.desenhar(ui); }
 
   /* ---------- painel: abrir / fechar ---------- */
   function abrir(tipo, id) {
     if (tipo !== "exec") { ui.soLanc = false; Mapa.limparDestaque(); }
+    if (tipo !== "rua" && typeof ConsultaRua !== "undefined") ConsultaRua.limpar();
     if (tipo !== "equipe") ui.filtroEquipe = "";
     if (tipo !== "aprox") ui.filtroLoc = "";
     ui.aberto = { tipo, id };
@@ -115,6 +121,11 @@ const App = (() => {
   function abrirExec(idx) {
     const e = res.visiveis.find(x => x.idx === idx) || res.todos.find(x => x.idx === idx); if (!e) return;
     abrir("exec", idx); redesenharMapa(); Mapa.destacar(e); Painel.exec(e, res, ui);
+  }
+  // consulta por rua (reclamação): k = chave da rua na base; area = só uma área (opcional)
+  function abrirRua(k, area) {
+    if (!k || typeof ConsultaRua === "undefined") return;
+    abrir("rua", { k, area: area || null }); redesenharMapa(); ConsultaRua.render(k, area || null);
   }
   function abrirEquipe(nomeEq) {
     ui.filtroEquipe = nomeEq ? U.norm(nomeEq).replace(/\s+/g, " ") : "";
@@ -152,6 +163,7 @@ const App = (() => {
   }
   function fechar() {
     ui.aberto = null; ui.areaAberta = null; ui.sel = null; ui.soLanc = false; ui.filtroEquipe = ""; ui.filtroLoc = "";
+    if (typeof ConsultaRua !== "undefined") ConsultaRua.limpar();
     Mapa.limparDestaque(); Painel.fechar(); redesenharMapa(); Painel.resumo(res, situ, ui);
   }
   function soEste(v) { ui.soLanc = v; redesenharMapa(); }
@@ -188,12 +200,13 @@ const App = (() => {
     cx.querySelector("#ckPontos").checked = ui.mostrar.pontos; cx.querySelector("#ckExec").checked = ui.mostrar.exec;
     cx.querySelector("#ckFaltam").checked = ui.mostrar.faltam; cx.querySelector("#ckRotas").checked = ui.mostrar.rotas;
     cx.querySelector("#ckFoco").checked = ui.focoLigado;
+    if (cx.querySelector("#ckRecl")) cx.querySelector("#ckRecl").checked = ui.mostrar.recl !== false;
     cx.querySelectorAll("#segModo button").forEach(b => b.classList.toggle("on", b.dataset.modo === ui.modo));
   }
   function ligarCaixa() {
     const cx = Mapa.caixa;
     cx.querySelectorAll("#segModo button").forEach(b => b.onclick = () => definirModo(b.dataset.modo));
-    [["ckPontos", "pontos"], ["ckExec", "exec"], ["ckFaltam", "faltam"], ["ckRotas", "rotas"]].forEach(([id, k]) =>
+    [["ckPontos", "pontos"], ["ckExec", "exec"], ["ckFaltam", "faltam"], ["ckRotas", "rotas"], ["ckRecl", "recl"]].filter(([id]) => cx.querySelector("#" + id)).forEach(([id, k]) =>
       cx.querySelector("#" + id).onchange = ev => { ui.mostrar[k] = ev.target.checked; U.guardar("mostrar", ui.mostrar); redesenharMapa(); });
     cx.querySelector("#ckFoco").onchange = ev => { ui.focoLigado = ev.target.checked; U.guardar("foco", ui.focoLigado); redesenharMapa(); };
     const min = cx.querySelector(".cx-min");
@@ -244,6 +257,7 @@ const App = (() => {
     const params = new URLSearchParams(h);
     if (params.has("area")) abrirArea(+params.get("area"), true);
     else if (params.has("ponto")) abrirPonto(params.get("ponto"), true);
+    else if (params.has("rua") && typeof ConsultaRua !== "undefined") { const k = ConsultaRua.chaveDoNome(params.get("rua")); if (k) abrirRua(k, +params.get("area_rua") || null); }
     else if (params.has("lanc")) {
       const [aba, ln] = params.get("lanc").split("|"), achar = () => res.visiveis.find(x => x.aba === aba && String(x.linha) === ln);
       let e = achar(); if (!e) { ui.ciclo = ""; periodo("tudo"); e = achar(); }
@@ -291,6 +305,8 @@ const App = (() => {
     $("cardLanc").onclick = () => abrirLista("lancamentos");
     $("cardFora").onclick = () => abrirLista("fora");
     $("cardNaoLoc").onclick = () => abrirLista("naoloc");
+    if ($("cardRecl")) $("cardRecl").onclick = () => { abrir("reclamacoes", null); redesenharMapa(); Reclamacoes.painel(res); };
+    if ($("btConsultaRua")) $("btConsultaRua").onclick = () => { if (typeof ConsultaRua === "undefined") return; abrir("consultaBusca", null); redesenharMapa(); ConsultaRua.telaBusca(); };
     if ($("cardAprox")) $("cardAprox").onclick = () => abrirLista("aprox");
     document.querySelectorAll("[data-exp]").forEach(b => b.onclick = () => res && Exportar.arquivo(b.dataset.exp, res));
     if ($("btProdExcel")) $("btProdExcel").onclick = () => res && Exportar.produtividade(res);
@@ -331,5 +347,5 @@ const App = (() => {
 
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", iniciar) : iniciar();
 
-  return { abrirArea, abrirPonto, abrirExec, abrirEquipe, abrirLista, abrirPersonalizado, filtrarPonto, filtrarEquipe, filtrarLoc, alternarMapaLimpo, fechar, soEste, alternarRota, clicarSituacao, todasSituacoes, recalcular, carregar, usarPlanilhaEditada, definirCiclo, get res() { return res; }, get ui() { return ui; }, get base() { return base; } };
+  return { abrirArea, abrirPonto, abrirExec, abrirRua, abrirEquipe, abrirLista, abrirPersonalizado, filtrarPonto, filtrarEquipe, filtrarLoc, alternarMapaLimpo, fechar, soEste, alternarRota, clicarSituacao, todasSituacoes, recalcular, carregar, usarPlanilhaEditada, definirCiclo, get res() { return res; }, get ui() { return ui; }, get base() { return base; } };
 })();

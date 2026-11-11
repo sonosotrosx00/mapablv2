@@ -76,6 +76,7 @@ const Painel = (() => {
     raiz.querySelectorAll("[data-ponto]").forEach(el => el.onclick = ev => { ev.preventDefault(); App.abrirPonto(el.dataset.ponto, true); });
     raiz.querySelectorAll("[data-area-link]").forEach(el => el.onclick = ev => { ev.preventDefault(); App.abrirArea(+el.dataset.areaLink, true); });
     raiz.querySelectorAll("[data-exec]").forEach(el => el.onclick = ev => { ev.preventDefault(); App.abrirExec(+el.dataset.exec); });
+    raiz.querySelectorAll("[data-rua-k]").forEach(el => el.onclick = ev => { ev.preventDefault(); App.abrirRua(el.dataset.ruaK, +el.dataset.ruaArea || null); });
     raiz.querySelectorAll("[data-sit]").forEach(el => el.onclick = () => App.clicarSituacao(el.dataset.sit));
     raiz.querySelectorAll("[data-sit-todas]").forEach(el => el.onclick = () => App.todasSituacoes());
     raiz.querySelectorAll("[data-ciclo]").forEach(el => el.onclick = ev => { ev.preventDefault(); App.definirCiclo(el.dataset.ciclo === App.ui.ciclo ? "" : el.dataset.ciclo); });
@@ -145,7 +146,7 @@ const Painel = (() => {
         ${situ ? `<div class="bloco"><h2>Filtrar ruas por situação</h2><div class="situ">${situacaoHtml(situ.resumo[n] || {}, ui, "a")}</div></div>` : ""}
         <div class="bloco rolar-x"><h2>${todas ? `Ruas capinadas (${trab.length})` : `Ruas filtradas (${ruas.length})`}</h2>
           ${ruas.length ? `<table class="tabela"><thead><tr><th>Rua</th><th>Feito</th><th>Total</th><th>%</th><th>Última</th></tr></thead><tbody>
-          ${ruas.slice(0, 80).map(r => `<tr><td class="quebra">${U.esc(r.nome)}<br>${chipSitu(r.s)}</td><td>${U.fmtKm(Math.min(r.feito, r.total || r.feito))}</td><td>${r.total ? U.fmtKm(r.total) : "—"}</td><td><b>${r.total ? U.fmtPct(Math.min(r.feito, r.total) / r.total * 100) + "%" : "—"}</b></td><td>${r.ult ? U.fmtData(r.ult).slice(0,5) + `<br>há ${r.dias} dias` : "—"}</td></tr>`).join("")}
+          ${ruas.slice(0, 80).map(r => `<tr${r.k ? ` class="clicavel" data-rua-k="${U.esc(r.k)}" data-rua-area="${n}" title="Consultar esta rua"` : ""}><td class="quebra">${U.esc(r.nome)}<br>${chipSitu(r.s)}</td><td>${U.fmtKm(Math.min(r.feito, r.total || r.feito))}</td><td>${r.total ? U.fmtKm(r.total) : "—"}</td><td><b>${r.total ? U.fmtPct(Math.min(r.feito, r.total) / r.total * 100) + "%" : "—"}</b></td><td>${r.ult ? U.fmtData(r.ult).slice(0,5) + `<br>há ${r.dias} dias` : "—"}</td></tr>`).join("")}
           </tbody></table>${ruas.length > 80 ? `<p class="nota">Mostrando 80 de ${ruas.length} ruas.</p>` : ""}` : `<p class="nota">Nenhuma rua nesta situação.</p>`}
         </div>
         ${exec.length ? `<div class="bloco"><h2>Lançamentos na área (${exec.length})</h2><div class="hist">${exec.slice(0, 30).map(e => `<div><a href="#" class="link" data-exec="${e.idx}" style="${e.fora ? "color:var(--laranja)" : ""}">${U.esc(e.rua)}</a><span>${U.fmtData(e.data).slice(0,5)} · ${e.metros ? U.fmtKm(e.metros) : "—"}${e.areaRef !== a.area ? `<br><small style="color:var(--laranja)">conta na Área ${e.areaRef}</small>` : ""}</span></div>`).join("")}</div></div>` : ""}
@@ -279,6 +280,7 @@ const Painel = (() => {
       ${e.loc.ok ? `<div class="bloco"><label class="ckline"><input type="checkbox" id="ckSoLanc" ${ui.soLanc ? "checked" : ""}> Mostrar só este lançamento no mapa</label>
         <div class="linha botoes" style="margin-top:8px">
           <button class="sec" type="button" id="btCentrar">Centralizar no trecho</button>
+          ${e.loc.ok && e.loc.ids ? `<button class="sec" type="button" data-rua-k="${U.esc(LOC.chaveDoSeg(e.loc.ids[0]))}" data-rua-area="${e.ruaArea || e.areaMapa || ""}">Consultar esta rua</button>` : ""}
           <button type="button" id="btSvExec">&#129485; Ver rua no Street View</button>
         </div></div>` : ""}
       <div class="bloco"><div class="grade">

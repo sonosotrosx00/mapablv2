@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#14532d">
 <title>Acompanhamento de Capina — Belém/PA</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
-<link rel="stylesheet" href="css/estilo.css?v=1104j">
+<link rel="stylesheet" href="css/estilo.css?v=1111f">
 </head>
 <body>
 <div class="app">
@@ -102,7 +102,8 @@
             <button class="sec" type="button" id="btProd" style="flex:1">Equipes & Produtividade</button>
           </div>
           <div class="linha" style="margin-top:8px">
-            <button class="sec" type="button" id="btEstudioPainel" style="width:100%;border-color:var(--verde);color:var(--verde-esc)">Planejar / Desenhar Rotas</button>
+            <button class="sec" type="button" id="btConsultaRua" style="flex:1">Consultar rua (reclamação)</button>
+            <button class="sec" type="button" id="btEstudioPainel" style="flex:1;border-color:var(--verde);color:var(--verde-esc)">Planejar / Desenhar Rotas</button>
           </div>
           <div class="linha" style="margin-top:6px">
             <a href="dashboard.html" target="_blank" class="bt-dash-bloco">Abrir Painel Gerencial (Dashboard Completo) &#8599;</a>
@@ -117,6 +118,7 @@
             <button class="card clic" type="button" id="cardAprox"><div class="rot">Trecho aproximado</div><div class="val" id="exAprox">0</div><div class="sub">Linhas tracejadas</div></button>
             <button class="card clic" type="button" id="cardNaoLoc"><div class="rot">Rua não encontrada</div><div class="val cinza" id="exNao">0</div><div class="sub">Corrigir o nome</div></button>
           </div>
+          <button class="card clic rc-card" type="button" id="cardRecl"><div class="rot">Reclamações abertas</div><div class="val" id="exRecl" style="color:#d63c2f">0</div><div class="sub" id="exReclSub">—</div></button>
           <h2 class="mt">Situação das ruas (tempo desde a capina)</h2>
           <div class="situ" id="situGeral"></div>
         </div>
@@ -177,6 +179,7 @@
       <label><input type="checkbox" id="ckExec" checked> Ruas lançadas</label>
       <label><input type="checkbox" id="ckFaltam"> Ruas sem registro</label>
       <label><input type="checkbox" id="ckRotas"> Rotas de coleta dos caminhões</label>
+      <label><input type="checkbox" id="ckRecl" checked> Reclamações abertas</label>
       <label><input type="checkbox" id="ckFoco"> Focar só na área aberta</label>
     </div>
     <div class="legenda" id="legenda"></div>
@@ -185,20 +188,22 @@
 
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/xlsx.mini.min.js"></script>
-<script src="data/geo.js?v=1104j"></script>
-<script src="data/ruas.js?v=1104j"></script>
-<script src="data/planilha_local.js?v=1104j"></script>
-<script src="js/config.js?v=1104j"></script>
-<script src="js/util.js?v=1104j"></script>
-<script src="js/localizador.js?v=1104j"></script>
-<script src="js/dados.js?v=1104j"></script>
-<script src="js/calculos.js?v=1104j"></script>
-<script src="js/mapa.js?v=1104j"></script>
-<script src="js/painel.js?v=1104j"></script>
-<script src="js/exportar.js?v=1104j"></script>
-<script src="js/importar_geo.js?v=1104j"></script>
-<script src="js/ferramentas_mapa.js?v=1104j"></script>
-<script src="js/ferramentas_extra.js?v=1104j"></script>
-<script src="js/app.js?v=1104j"></script>
+<script src="data/geo.js?v=1111f"></script>
+<script src="data/ruas.js?v=1111f"></script>
+<script src="data/planilha_local.js?v=1111f"></script>
+<script src="js/config.js?v=1111f"></script>
+<script src="js/util.js?v=1111f"></script>
+<script src="js/localizador.js?v=1111f"></script>
+<script src="js/dados.js?v=1111f"></script>
+<script src="js/calculos.js?v=1111f"></script>
+<script src="js/mapa.js?v=1111f"></script>
+<script src="js/painel.js?v=1111f"></script>
+<script src="js/exportar.js?v=1111f"></script>
+<script src="js/importar_geo.js?v=1111f"></script>
+<script src="js/ferramentas_mapa.js?v=1111f"></script>
+<script src="js/ferramentas_extra.js?v=1111f"></script>
+<script src="js/reclamacoes.js?v=1111f"></script>
+<script src="js/consulta_rua.js?v=1111f"></script>
+<script src="js/app.js?v=1111f"></script>
 </body>
 </html>

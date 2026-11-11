@@ -52,7 +52,7 @@ const FerramentasExtra = (() => {
       if (!out.length) throw new Error(`CEP ${j.cep} (${rua}, ${j.bairro}) não localizado no mapa`);
       return out;
     }
-    const locais = LOC.sugerirRuas(txt, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true, exata: s.exata }; });
+    const locais = LOC.sugerirRuas(txt, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true, exata: s.exata, chave: s.chave }; });
     let ext = [];
     if (/\d/.test(txt) || !locais.some(l => U.norm(l.rotulo) === U.norm(txt))) {
       const linhasOsm = g => !g ? null : g.type === "LineString" ? [g.coordinates.map(([x, y]) => [y, x])] : g.type === "MultiLineString" ? g.coordinates.map(l => l.map(([x, y]) => [y, x])) : null;
@@ -97,7 +97,7 @@ const FerramentasExtra = (() => {
   }
   function sugerir(txt) {
     const t = txt.trim(); if (t.length < 3 || lerCoordenada(t) || ehCep(t)) { if (!t) $("buscaRes").hidden = true; return; }
-    const lista = LOC.sugerirRuas(t, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true }; });
+    const lista = LOC.sugerirRuas(t, 6).map(s => { const lin = LOC.linhasDe(s.segs); return { rotulo: s.nome, ll: lin[0][Math.floor(lin[0].length / 2)], linhas: lin, rua: true, chave: s.chave }; });
     lista.push({ osm: t });
     mostrarResultados(lista);
   }
@@ -109,6 +109,8 @@ const FerramentasExtra = (() => {
   }
   function irPara(r) {
     camadaBusca.clearLayers();
+    // rua da base: abre a consulta da rua (última capina, recorrência, ciclo e lançamentos)
+    if (r.rua && r.chave && typeof App !== "undefined" && App.abrirRua && typeof ConsultaRua !== "undefined") { App.abrirRua(r.chave); return; }
     if (r.linhas && r.linhas.length) {
       const pl = L.polyline(r.linhas, { color: "#ffd400", weight: 11, opacity: .85, interactive: false }).addTo(camadaBusca);
       L.polyline(r.linhas, { color: "#14532d", weight: 4, interactive: false }).addTo(camadaBusca);

@@ -56,6 +56,8 @@ const Dados = (() => {
       capina: uma(CFG.abas.capina, "data", "area", "km"),
       pontos: todas(CFG.abas.pontos, "ponto", "status"),
       ciclos: uma(CFG.abas.ciclos, "area", "ciclo", "inicio"),
+      // reclamações: precisa de Rua e de Origem ou Descrição (o Google devolve a 1ª aba quando o nome não existe)
+      reclamacoes: (CFG.abas.reclamacoes || []).map(n => porNome[n]).find(t => t && U.temColuna(t, "rua") && (U.temColuna(t, "origem") || U.temColuna(t, "descricao") || U.temColuna(t, "reclamacao"))) || null,
       lancamentos: CFG.abas.lancamentos.map(n => { const t = porNome[n]; if (t) t._aba = n; return t; }).filter(t => t && (U.temColuna(t, "rua") || U.temColuna(t, "ponto")))
     };
   }
@@ -115,6 +117,7 @@ const Dados = (() => {
     return {
       areas: areas(t.areas), capina: capina(t.capina), ciclos: ciclos(t.ciclos),
       lancamentos: [].concat(...t.lancamentos.map(lancamentos)), pontos: pontos(t.pontos, t.lancamentos),
+      reclamacoes: t.reclamacoes && typeof Reclamacoes !== "undefined" ? Reclamacoes.converter(t.reclamacoes) : [],
       abas: { areas: !!t.areas, capina: !!t.capina, pontos: t.pontos.length > 0, ciclos: !!t.ciclos, lancamentos: t.lancamentos.length }
     };
   }

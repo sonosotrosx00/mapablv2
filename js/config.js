@@ -8,6 +8,7 @@ window.CFG = {
     capina:  ["Capina"],
     pontos:  ["Pontos", "Aba Pontos", "Respostas Pontos", "Respostas ao formulário 2"],   // todas as que existirem são somadas (vale a data mais recente de cada ponto)
     ciclos:  ["Ciclos"],
+    reclamacoes: ["Reclamações", "Reclamacoes"],   // respostas do Forms de reclamações (renomear a aba para "Reclamações")
     lancamentos: ["Executado", "Respostas ao formulário 1"]   // todas as que existirem são somadas
   },
 
@@ -56,6 +57,10 @@ window.CFG = {
   // Formulário de coleta dos pontos críticos (opcional). Deixe "" enquanto não existir.
   // campoPonto = código da pergunta "Ponto" (para o site já abrir o Forms com o ponto preenchido).
   formularioPontos: "",
+  // Forms de reclamações (munícipe / prefeitura). Deixe "" enquanto não existir.
+  // CampoRua = código da pergunta "Rua" (para o botão já abrir o Forms com a rua preenchida).
+  formularioReclamacoes: "https://docs.google.com/forms/d/1ueoW1_3jxtNcVmOvX6PNyQRi9ko08-X8OOCoJYyOlSc/viewform",
+  formularioReclamacoesCampoRua: "1851154379",
   formularioPontosCampoPonto: "",
   // enquanto não houver o Forms de pontos, o botão "Registrar coleta" abre a planilha na Aba Pontos (precisa ter permissão de edição)
   // código (gid) de cada aba na planilha Google, para os botões "Editar" abrirem a aba e a linha certas

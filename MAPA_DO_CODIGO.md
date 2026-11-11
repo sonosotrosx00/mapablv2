@@ -46,6 +46,32 @@ Ao mudar um .js ou o .css, trocar o número `?v=` nos dois .html (força o naveg
 ### Versão `?v=1104j`
 - `js/painel.js`: "Lançamentos na área" também lista o que foi pintado na área mas conta em outra (área informada diferente), com "conta na Área N".
 
+### Versão `?v=1111c` (11/11/2026) — Consulta por rua (reclamação)
+| Arquivo | O que faz |
+|---|---|
+| `js/consulta_rua.js` (novo) | `ConsultaRua.render(chave, area)`: para a rua da base, por área, mostra última capina, dias, recorrência, "próxima capina até" (última capina + recorrência do trecho mais antigo), situação por trecho (barra), ciclo da área e se a rua já foi lançada nele, e os lançamentos da rua. Desenha a rua no mapa (pane `consultaRua`) com a cor de cada trecho. Botões Copiar link, Street View, Centralizar. |
+| `js/app.js` | `App.abrirRua(chave, area)`; link `index.html#rua=<nome da rua>&area_rua=<n>`; botão "Consultar rua (reclamação)" leva à busca. |
+| `js/ferramentas_extra.js` | Escolher uma rua da base na busca abre a consulta da rua. |
+| `js/painel.js` | Tabela "Ruas" da área: clicar na linha abre a consulta. Lançamento aberto: botão "Consultar esta rua". |
+| `css/estilo.css` | Estilos `.cr-*`; `#mapa { position: relative }` (controles do mapa ficavam por cima do painel quando a janela abria estreita e depois alargava). |
+
+A situação vem de `Calc.situacaoRuas` (todos os lançamentos de capina até a data de referência, não depende do período escolhido).
+
+### Versão `?v=1111d` — Reclamações
+| Arquivo | O que faz |
+|---|---|
+| `js/reclamacoes.js` (novo) | Lê a aba **Reclamações** (Forms + colunas Status, Resposta, Data da resposta preenchidas pelo CCO). Status: vazio = Aberta; "andamento/programada/encaminhada" = Em andamento; "atendida/resolvida/concluída" = Atendida; "improcedente". Localiza a rua (com o ponto de referência como cruzamento), marca no mapa (círculo "!" só para abertas/em andamento), lista no painel com filtros e mostra a análise: última capina antes da reclamação (dias e se estava na recorrência) e primeira capina depois. |
+| `js/dados.js` | `base.reclamacoes` (só usa a aba se tiver Rua e Origem ou Descrição). |
+| `js/config.js` | `abas.reclamacoes`, `formularioReclamacoes`, `formularioReclamacoesCampoRua`. |
+| `js/app.js`, `index.html` | Cartão "Reclamações abertas", caixa "Reclamações abertas" no mapa, tela `reclamacoes`. |
+| `js/consulta_rua.js` | Bloco "Reclamações nesta rua" e botão "Registrar reclamação nesta rua" (quando o Forms estiver configurado). |
+
+Forms "Reclamação de Capina" ligado em `?v=1111e`: https://docs.google.com/forms/d/1ueoW1_3jxtNcVmOvX6PNyQRi9ko08-X8OOCoJYyOlSc/viewform (pergunta Rua = `entry.1851154379`). Respostas na aba **Reclamações** da planilha, com Status / Resposta / Data da resposta à direita.
+
+`?v=1111f`: o botão "Consultar rua (reclamação)" abre `ConsultaRua.telaBusca()` (campo de busca no painel + ruas com reclamação aberta). Antes ele só colocava o cursor na busca do mapa, sem efeito visível.
+
+O dashboard não carrega `reclamacoes.js` (Dados ignora a aba quando o módulo não existe).
+
 Se uma pergunta do Forms for apagada e criada de novo, o código dela muda: atualizar `envioForms.campos` (o código aparece no link "Obter link pré-preenchido" do Forms, `entry.NNNN`).
 
 ## Linha contínua × tracejada (localizador)
