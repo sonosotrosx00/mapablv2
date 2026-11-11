@@ -41,8 +41,9 @@ const App = (() => {
 
   /* ---------- leitura ---------- */
   function status(txt, erro) { const s = $("status"); s.textContent = txt; s.className = "status" + (erro ? " erro" : ""); }
-  async function carregar() {
-    const bt = $("btAtualizar"); bt.disabled = true; status("Atualizando…");
+  let ultimaAssinatura = "";
+  async function carregar(silencioso) {
+    const bt = $("btAtualizar"); bt.disabled = true; if (!silencioso) status("Atualizando…");
     try {
       if (fonte === "local" && PLANILHA_LOCAL) {
         const ativa = Dados.planilhaAtivaLocal();
@@ -53,7 +54,10 @@ const App = (() => {
         base = Dados.converter(await Dados.lerExcel(arqExcel));
         status("Excel carregado: " + (arqExcel ? arqExcel.name : "arquivo"));
       } else {
-        base = Dados.converter(await Dados.lerGoogle(U.ler("planilha", "") || CFG.planilha));
+        const bruto = await Dados.lerGoogle(U.ler("planilha", "") || CFG.planilha), assin = JSON.stringify(bruto);
+        if (silencioso && assin === ultimaAssinatura && base) { bt.disabled = false; status("Google Sheets atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })); return; }
+        ultimaAssinatura = assin;
+        base = Dados.converter(bruto);
         status("Google Sheets atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
       }
       Painel.filtros(base);
@@ -332,7 +336,7 @@ const App = (() => {
     });
     // planilha Google: lê de novo a cada 2 minutos com a aba aberta, e ao voltar para a aba
     let ultimaLeitura = Date.now();
-    const releitura = () => { if (fonte === "google" && !document.hidden && Date.now() - ultimaLeitura > 110000 && !$("btAtualizar").disabled) { ultimaLeitura = Date.now(); carregar(); } };
+    const releitura = () => { if (fonte === "google" && !document.hidden && Date.now() - ultimaLeitura > 110000 && !$("btAtualizar").disabled) { ultimaLeitura = Date.now(); carregar(true); } };
     setInterval(releitura, 30000);
     document.addEventListener("visibilitychange", releitura);
     $("btAtualizar").addEventListener("click", () => { ultimaLeitura = Date.now(); });

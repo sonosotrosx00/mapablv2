@@ -70,6 +70,12 @@ Forms "Reclamação de Capina" ligado em `?v=1111e`: https://docs.google.com/for
 
 `?v=1111f`: o botão "Consultar rua (reclamação)" abre `ConsultaRua.telaBusca()` (campo de busca no painel + ruas com reclamação aberta). Antes ele só colocava o cursor na busca do mapa, sem efeito visível.
 
+### Versão `?v=1111g` — celular mais leve
+- `js/mapa.js`: em tela ≤ 800 px ou de toque (`L_.leve`), áreas, ruas lançadas e destaque são desenhados em **canvas** (`preferCanvas`), sem animação dos marcadores, mapa de fundo só carrega depois do gesto de zoom (`updateWhenZooming: false`, `keepBuffer: 1`) e polígonos com `smoothFactor 1.5`. No computador continua SVG, como antes.
+- `js/mapa.js`: os 180 marcadores só trocam de ícone quando algo muda (situação, seleção, modo ou passar do zoom 14); antes eram recriados a cada zoom.
+- `js/app.js`: a releitura automática da planilha (a cada 2 min) não refaz o mapa se a planilha veio igual.
+- `css/estilo.css`: no celular, marcadores sem sombra `drop-shadow` (filtro pesado no zoom) e rótulos das áreas com sombra mais leve.
+
 O dashboard não carrega `reclamacoes.js` (Dados ignora a aba quando o módulo não existe).
 
 Se uma pergunta do Forms for apagada e criada de novo, o código dela muda: atualizar `envioForms.campos` (o código aparece no link "Obter link pré-preenchido" do Forms, `entry.NNNN`).

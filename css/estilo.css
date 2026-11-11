@@ -431,3 +431,9 @@ tr.clicavel:hover td { background: var(--verde-claro); }
 .cr-busca { width: 100%; margin-top: 10px; padding: 9px 10px; font-size: 14px; border: 1px solid var(--verde); border-radius: 8px; }
 .cr-sug a { display: block; padding: 8px 10px; border-bottom: 1px solid #eef1ef; color: var(--texto); text-decoration: none; font-size: 13px; }
 .cr-sug a:hover { background: var(--verde-claro); }
+
+/* Celular / toque: sem sombras com filtro nos marcadores (pesam no zoom) */
+@media (max-width: 800px), (pointer: coarse) {
+  .pin svg { filter: none; }
+  .rotulo-area { text-shadow: 0 0 2px #fff; }
+}

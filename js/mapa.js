@@ -23,20 +23,25 @@ const Mapa = (() => {
 
   function init(callbacks) {
     cb = callbacks;
-    mapa = L.map("mapa", { zoomControl: true });
+    // celular ou tela de toque: desenha em canvas (bem mais leve no zoom) e não refaz o mapa de fundo durante o gesto
+    const leve = window.matchMedia("(max-width: 800px), (pointer: coarse)").matches;
+    L_.leve = leve;
+    mapa = L.map("mapa", { zoomControl: true, preferCanvas: leve, markerZoomAnimation: !leve });
     const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/";
-    const ruas = L.tileLayer(esri + "World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Mapa base &copy; Esri" }).addTo(mapa);
-    const sat = L.tileLayer(esri + "World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagem &copy; Esri" });
+    const opFundo = leve ? { updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 1 } : {};
+    const ruas = L.tileLayer(esri + "World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Mapa base &copy; Esri", ...opFundo }).addTo(mapa);
+    const sat = L.tileLayer(esri + "World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagem &copy; Esri", ...opFundo });
     L.control.layers({ "Ruas": ruas, "Satélite": sat }, null, { position: "topleft" }).addTo(mapa);
     [["faltam", 440, true], ["linhas", 450, false], ["destaque", 460, true]].forEach(([n, z, semClique]) => { mapa.createPane(n).style.zIndex = z; if (semClique) mapa.getPane(n).style.pointerEvents = "none"; });
     L_.rendFaltam = L.canvas({ pane: "faltam", padding: .3 });
-    L_.rendLinhas = L.svg({ pane: "linhas", padding: .3 });
-    L_.rendDestaque = L.svg({ pane: "destaque" });
+    L_.rendLinhas = leve ? L.canvas({ pane: "linhas", padding: .3, tolerance: 8 }) : L.svg({ pane: "linhas", padding: .3 });
+    L_.rendDestaque = leve ? L.canvas({ pane: "destaque" }) : L.svg({ pane: "destaque" });
+    L_.rendAreas = leve ? L.canvas({ padding: .3 }) : null;
     ["areas", "rotulos", "faltam", "exec", "tempo", "pontos", "destaque"].forEach(k => L_[k] = L.layerGroup().addTo(mapa));
     L_.rotas = L.layerGroup();
 
     GEO.areas.forEach(a => {
-      const pol = L.polygon(a.polys, { color: "#3d4a42", weight: 1.5, fillOpacity: .6 }).addTo(L_.areas);
+      const pol = L.polygon(a.polys, { color: "#3d4a42", weight: 1.5, fillOpacity: .6, smoothFactor: leve ? 1.5 : 1, ...(L_.rendAreas ? { renderer: L_.rendAreas } : {}) }).addTo(L_.areas);
       pol.bindTooltip(() => dicaArea(a.area), { sticky: true, className: "dica", direction: "top", offset: [0, -8] });
       pol.on("click", () => cb.area(a.area));
       poligonos[a.area] = pol;
@@ -64,7 +69,8 @@ const Mapa = (() => {
 
     L_.limites = L.featureGroup(Object.values(poligonos)).getBounds();
     mapa.fitBounds(L_.limites, { padding: [10, 10] });
-    mapa.on("zoomend", () => { if (ultimo) desenharPins(ultimo.res, ultimo.ui); });
+    let faixaZoom = mapa.getZoom() >= 14;
+    mapa.on("zoomend", () => { const f = mapa.getZoom() >= 14; if (f === faixaZoom || !ultimo) return; faixaZoom = f; desenharPins(ultimo.res, ultimo.ui); });
 
     const aviso = L.control({ position: "topleft" });
     aviso.onAdd = () => { const d = L.DomUtil.create("div", "aviso-foco"); d.hidden = true; L.DomEvent.disableClickPropagation(d); return d; };
@@ -113,7 +119,8 @@ const Mapa = (() => {
       if (!ver) { L_.pontos.removeLayer(m); return; }
       if (!L_.pontos.hasLayer(m)) L_.pontos.addLayer(m);
       const sel = ui.sel && ui.sel.tipo === "ponto" && ui.sel.id === p.cod;
-      m.setIcon(icone(p, st, sel, ui.modo, ui.filtroPonto)); m.setZIndexOffset(sel ? 1000 : (st === "nao" ? 400 : 0));
+      const chaveIc = [st, sel, ui.modo, ui.filtroPonto, mapa.getZoom() >= 14].join("|");
+      if (m._chaveIc !== chaveIc) { m._chaveIc = chaveIc; m.setIcon(icone(p, st, sel, ui.modo, ui.filtroPonto)); m.setZIndexOffset(sel ? 1000 : (st === "nao" ? 400 : 0)); }
     });
     if (ui.mostrar.pontos) L_.pontos.addTo(mapa); else L_.pontos.remove();
   }
