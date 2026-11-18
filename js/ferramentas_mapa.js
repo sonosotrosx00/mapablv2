@@ -444,7 +444,9 @@ const FerramentasMapa = (() => {
         <div><small>Linhas / rotas</small><span><b>${tot("linha")}</b> · ${U.fmtKm(kmLinhas)}</span></div>
         <div><small>Áreas / setores</small><span><b>${tot("poligono")}</b> · ${U.fmt(haAreas, 1)} ha</span></div>
         <div><small>Pontos</small><span><b>${tot("ponto")}</b></span></div>
-        <div><small>Capina das linhas</small><span>${U.fmt(kmLinhas / meta, 1)} equipes por dia</span></div>
+        ${R.capinaNoPlanejamento === false
+          ? `<div><small>Visíveis no mapa</small><span><b>${ativos.length}</b> de ${desenhos.length}</span></div>`
+          : `<div><small>Capina das linhas</small><span>${U.fmt(kmLinhas / meta, 1)} equipes por dia</span></div>`}
       </div></div>
       ${atual ? htmlEditor(atual) : ""}
       <div class="bloco">

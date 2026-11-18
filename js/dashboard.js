@@ -160,6 +160,7 @@
     renderizarAbaCapina();
     renderizarAbaEquipes();
     renderizarAbaPontos();
+    if (typeof GanttCiclos !== "undefined") GanttCiclos.render(res);   // aba Cronograma dos Ciclos (js/gantt_ciclos.js; opcional)
   }
 
   /* ============================================================================

@@ -76,11 +76,21 @@ const Dados = (() => {
       const n = U.inteiro(U.campo(o, "area").v); const a = lista.find(x => x.area === n); if (!a) return;
       const sup = U.campo(o, "supervisor").f, sds = U.campo(o, "sds").f, km = U.num(U.campo(o, "extensao").v), eq = U.inteiro(U.campo(o, "equipes").v), rec = U.inteiro(U.campo(o, "recorrencia").v);
       if (sup) a.supervisor = sup; if (sds) a.sds = sds; if (km) a.km = km; if (eq) a.equipes = eq; if (rec) a.recorrencia = rec;
+      // meta e recorrência dos outros serviços: colunas "Roçagem - Extensão (km)", "Roçagem - Recorrência (dias)" etc.
+      (CFG.servicosMapa || []).filter(s => s.colunas).forEach(s => {
+        const kmS = U.num(U.campo(o, s.colunas + "_extensao", s.colunas + "_km").v), recS = U.inteiro(U.campo(o, s.colunas + "_recorrencia").v);
+        if (kmS || recS) (a.svc || (a.svc = {}))[s.id] = { km: kmS || 0, recorrencia: recS || null };
+      });
     });
     return lista;
   }
+  // id do serviço do seletor a partir do texto escrito (vazio = capina, como sempre foi)
+  function idServico(txt) {
+    const t = String(txt || "").trim(); if (!t) return "capina";
+    const s = (CFG.servicosMapa || []).find(x => x.teste && x.teste.test(t)); return s ? s.id : "";
+  }
   const capina = t => U.objetos(t).map(o => ({ data: U.data(U.campo(o, "data").v), area: U.inteiro(U.campo(o, "area").v), km: U.num(U.campo(o, "km").v), obs: U.campo(o, "obs").f, linha: o._linha })).filter(r => r.area && r.km && r.data);
-  const ciclos = t => U.objetos(t).map(o => ({ area: U.inteiro(U.campo(o, "area").v), ciclo: U.campo(o, "ciclo").f.trim().toUpperCase(), inicio: U.data(U.campo(o, "inicio", "data_inicial").v), fim: U.data(U.campo(o, "fim", "data_final", "termino").v), status: U.campo(o, "status").f.trim(), obs: U.campo(o, "obs").f })).filter(c => c.area && c.inicio);
+  const ciclos = t => U.objetos(t).map(o => ({ area: U.inteiro(U.campo(o, "area").v), ciclo: U.campo(o, "ciclo").f.trim().toUpperCase(), inicio: U.data(U.campo(o, "inicio", "data_inicial").v), fim: U.data(U.campo(o, "fim", "data_final", "termino").v), status: U.campo(o, "status").f.trim(), obs: U.campo(o, "obs").f, servico: idServico(U.campo(o, "servico").f) || "capina" })).filter(c => c.area && c.inicio);
 
   function lancamentos(t) {
     return U.objetos(t).map(o => {
@@ -128,5 +138,5 @@ const Dados = (() => {
     return window.PLANILHA_LOCAL ? JSON.parse(JSON.stringify(window.PLANILHA_LOCAL)) : null;
   }
 
-  return { lerGoogle, lerExcel, converter, idPlanilha, codPonto, planilhaAtivaLocal, get ultimaBruta() { return ultimaBruta; } };
+  return { lerGoogle, lerExcel, converter, idPlanilha, codPonto, planilhaAtivaLocal, idServico, get ultimaBruta() { return ultimaBruta; } };
 })();

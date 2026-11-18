@@ -61,11 +61,24 @@ const Calc = (() => {
     return ciclos.filter(c => c.area === area && c.inicio <= d && (!c.fim || d <= c.fim)).sort((a, b) => b.inicio - a.inicio)[0] || null;
   }
 
+  /* ---------- serviço do seletor ---------- */
+  const SERVICOS = CFG.servicosMapa || [{ id: "capina", nome: "Capinação e raspagem", curto: "Capina", teste: /capin|rasp/i }];
+  const servico = id => SERVICOS.find(s => s.id === id) || SERVICOS[0];
+  // meta (km) e recorrência da área para o serviço; capina usa as colunas de sempre
+  function areaDoServico(a, svc) {
+    if (svc.id === "capina" || svc.pontos) return a;
+    const x = (a.svc || {})[svc.id] || {};
+    return { ...a, km: x.km || 0, recorrencia: x.recorrencia || null };
+  }
+
   /* ---------- cálculo principal ---------- */
+  // f.svc: id do serviço escolhido no topo do mapa. Sem f.svc (dashboard), funciona como antes: capina + todos os serviços na lista.
   function calcular(base, f) {
     indexar();
+    const svc = servico(f.svc), filtraSvc = !!f.svc;
     const noPeriodo = d => (!f.ini && !f.fim) || (d && (!f.ini || d >= f.ini) && (!f.fim || d <= f.fim));
-    const areas = base.areas;
+    const areas = base.areas.map(a => areaDoServico(a, svc));
+    const ciclosSvc = base.ciclos.filter(c => (c.servico || "capina") === (svc.pontos ? "capina" : svc.id));
     const ref = f.ref;
 
     const todos = base.lancamentos.map((r, i) => {
@@ -75,25 +88,27 @@ const Calc = (() => {
       const areaRef = r.area || areaMapa;
       // área informada que o trecho no mapa nem toca (ex.: informou Área 1 numa rua da Área 7); ruas de divisa não contam
       const divergente = !!(r.area && areaMapa && r.area !== areaMapa && AREAS_POLY[r.area] && !loc.linhas.some(l => l.some(pt => LOC.pontoNoPoligono(pt, AREAS_POLY[r.area]))));
-      const capina = !r.servico || CFG.servicoCapina.test(r.servico);
-      const cic = cicloDaData(base.ciclos, areaRef, r.data);
+      // "capina" = o lançamento é do serviço escolhido (o nome ficou por compatibilidade com o resto do código)
+      const capina = filtraSvc ? Dados.idServico(r.servico) === svc.id : (!r.servico || CFG.servicoCapina.test(r.servico));
+      const cic = cicloDaData(ciclosSvc, areaRef, r.data);
       return { ...r, idx: i, loc, areaSup, areaMapa, areaRef, fora: !!(areaSup && ((areaRef && areaSup !== areaRef) || (divergente && areaMapa !== areaSup))), areaDivergente: divergente, capina,
                metros: metrosConsiderados(r, loc), cicloCalc: cic ? cic.ciclo : (r.ciclo || "") };
     });
     const naSelecao = e => f.ciclo ? e.cicloCalc === f.ciclo : noPeriodo(e.data);
-    const visiveis = todos.filter(e => naSelecao(e) && (!f.servico || U.norm(e.servico) === f.servico) && (!f.supervisor || U.primeiroNome(e.supervisor) === f.supervisor));
+    const visiveis = todos.filter(e => naSelecao(e) && (!filtraSvc || e.capina) && (!f.servico || U.norm(e.servico) === f.servico) && (!f.supervisor || U.primeiroNome(e.supervisor) === f.supervisor));
 
     // por área
     const porArea = {};
     const somaJanela = (area, jan) => {
       const lanc = todos.filter(e => e.capina && e.areaRef === area && jan(e.data));
-      const tab = base.capina.filter(r => r.area === area && jan(r.data));
+      // aba "Capina" (km lançados direto por área) só conta para a capina
+      const tab = svc.id === "capina" ? base.capina.filter(r => r.area === area && jan(r.data)) : [];
       return { feito: lanc.reduce((s, e) => s + e.metros, 0) + tab.reduce((s, r) => s + r.km * 1000, 0), n: lanc.length, tab };
     };
     const janelaCiclo = c => d => d && d >= c.inicio && d <= (c.fim || ref);
     areas.forEach(a => {
       const plano = (a.km || 0) * 1000, pctDe = m => plano ? Math.min(m, plano) / plano * 100 : 0;
-      const doArea = base.ciclos.filter(c => c.area === a.area).sort((x, y) => x.inicio - y.inicio);
+      const doArea = ciclosSvc.filter(c => c.area === a.area).sort((x, y) => x.inicio - y.inicio);
       const ciclos = doArea.map(c => { const r = somaJanela(a.area, janelaCiclo(c)); return { ...c, feito: r.feito, n: r.n, pct: pctDe(r.feito), dias: U.dias(c.inicio, c.fim || ref) + 1 }; });
       const ciclo = f.ciclo ? doArea.filter(c => c.ciclo === f.ciclo).pop() || null : doArea.filter(c => c.inicio <= ref).pop() || null;
       const ini = ciclo ? ciclo.inicio : f.ini, fim = ciclo ? (ciclo.fim || ref) : f.fim;
@@ -128,7 +143,8 @@ const Calc = (() => {
     const pontos = ultimoPorPonto(base.pontos, noPeriodo);
     const totPlano = areas.reduce((s, a) => s + (a.km || 0) * 1000, 0);
     const totFeito = Object.values(porArea).reduce((s, a) => s + Math.min(a.feito, a.plano), 0);
-    return { todos, visiveis, porArea, pontos, totPlano, totFeito, ref, filtroSup: f.supervisor || "", ciclo: f.ciclo || "", codigosCiclo: [...new Set(base.ciclos.map(c => c.ciclo))].sort() };
+    const totExec = Object.values(porArea).reduce((s, a) => s + a.feito, 0);
+    return { todos, visiveis, porArea, pontos, totPlano, totFeito, totExec, ref, svc, filtroSup: f.supervisor || "", ciclo: f.ciclo || "", codigosCiclo: [...new Set(ciclosSvc.map(c => c.ciclo))].sort() };
   }
 
   /* ---------- situação das ruas (tempo desde a última capina até a data de referência) ---------- */
@@ -206,7 +222,7 @@ const Calc = (() => {
     }).sort((a, b) => b.m - a.m);
   }
 
-  return { calcular, situacaoRuas, semanas, produtividade, produtividadeSupervisores, statusPonto, areaDoSupervisor, indexar,
+  return { calcular, situacaoRuas, semanas, produtividade, produtividadeSupervisores, statusPonto, areaDoSupervisor, indexar, servico, SERVICOS,
            AREAS_POLY, get SEG_AREA() { return SEG_AREA; }, RUAS_AREA };
 })();
 

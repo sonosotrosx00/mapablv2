@@ -84,3 +84,31 @@ Se uma pergunta do Forms for apagada e criada de novo, o código dela muda: atua
 - Contínua: Rua + "Perímetro - de" + "Perímetro - até", e o mapa acha os dois cruzamentos.
 - Tracejada "aproximado": só um cruzamento achado; desenha a extensão informada a partir dele.
 - Tracejada "rua": nenhum cruzamento achado; mostra a rua inteira naquela área.
+
+## Versão `?v=1118a` (18/11/2026) — Serviço no topo, painel enxuto e modo consulta
+| Arquivo | O que mudou |
+|---|---|
+| `js/config.js` | `CFG.servicosMapa`: serviços do seletor no topo (Capina, Roçagem, Mutirão, Pontos críticos). `teste` reconhece o serviço escrito no lançamento. Para tirar ou pôr um serviço, mexa só nesta lista. |
+| `js/dados.js` | Aba **Areas**: meta e recorrência dos outros serviços em colunas que começam pelo nome do serviço: `Roçagem - Extensão (km)`, `Roçagem - Recorrência (dias)`, `Mutirão - Extensão (km)`, `Mutirão - Recorrência (dias)` (opcionais). Aba **Ciclos**: coluna opcional `Serviço` (sem ela, o ciclo é da capina). `Dados.idServico(texto)`. |
+| `js/calculos.js` | `Calc.calcular(base, f)` com `f.svc`: meta, recorrência, ciclos e lançamentos do serviço escolhido (`e.capina` passa a significar "é do serviço escolhido"). Sem `f.svc` (dashboard.html) funciona como antes. `res.svc`, `res.totExec`. |
+| `js/app.js` | `ui.svc` (guardado no navegador e no link `?servico=rocagem`), `App.definirServico(id)`, classes `svc-<id>` no `<body>`. Reclamações só na capina. **Modo consulta** com `?consulta`: classe `consulta` no `<body>`, lê sempre a planilha online. Botão "Copiar link de consulta". |
+| `js/painel.js`, `js/mapa.js` | Textos seguem o serviço ("Roçagem no ciclo atual", "Última roçagem", "Ruas roçadas"). Serviço sem meta mostra km executados e qual coluna criar. Em Pontos críticos, a lista de áreas mostra pontos coletados. |
+| `index.html` | Seletor de serviço no topo. Blocos marcados com `so-ruas`, `so-pontos`, `so-capina` (aparecem só no serviço certo) e `interno` (somem no modo consulta). "Subir Excel", fonte dos dados, exportações e "Planejar / Desenhar Rotas" foram para **Ferramentas e dados** (fechado). Filtro de serviço escondido (o serviço vem do topo). |
+| `css/estilo.css` | Estilos do seletor (`.svc-seg`) e regras das classes acima, no fim do arquivo. |
+
+Para o chefe ou a prefeitura: `mapas.cblplanejamento.com.br/?consulta&servico=capina` (sem planilha, formulários, edição nem cartões de conferência).
+
+### Versão `?v=1118b` — Cronograma dos Ciclos (dashboard.html)
+| Arquivo | O que faz |
+|---|---|
+| `js/gantt_ciclos.js` (novo) | Cria a aba **Cronograma dos Ciclos** no Painel Gerencial: uma linha por área, uma barra por ciclo da aba Ciclos. Parte escura = % da meta feita no ciclo; traço = fim previsto (início + recorrência); verde = no prazo; laranja = encerrado além da recorrência; vermelho = em execução e atrasado; linha vermelha = hoje. Janela de 60 dias, 90 dias, 6 meses ou tudo (guardada no navegador). Aviso no topo com os ciclos abertos além da recorrência. Clique na barra abre `index.html#area=N`. Só lê, não altera a planilha. Sem biblioteca externa (funciona offline). |
+| `js/dashboard.js` | `recalcular()` chama `GanttCiclos.render(res)` se o módulo existir. |
+| `dashboard.html` | `<script src="js/gantt_ciclos.js">`. **Para tirar a aba:** apague essa linha (e o arquivo). |
+
+### Versão `?v=1118c` — Trajeto com paradas
+| Arquivo | O que mudou |
+|---|---|
+| `js/ferramentas_extra.js` | Trajeto: paradas entre a saída (A) e a chegada (B) ("+ Adicionar parada", subir/descer/tirar, digitar ou clicar no mapa), pinos laranja numerados, distância e tempo de cada trecho, "Otimizar a ordem das paradas" (serviço `trip` do OSRM, mantém A e B fixos), link do Google Maps com as paradas, "Salvar no planejamento" com a ordem nas observações. |
+| `js/ferramentas_mapa.js`, `js/config.js` | `CFG.recursos.capinaNoPlanejamento` (padrão `true`): mostra "Capina das linhas: N equipes por dia" no Planejar. O Mapa de Planejamento do hub desliga e mostra "Visíveis no mapa". |
+
+Estes dois arquivos também são usados pelo Mapa de Planejamento do hub (`hub.cblplanejamento/planejamento/js/`): ao mudar aqui, copie para lá.

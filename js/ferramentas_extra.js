@@ -189,7 +189,8 @@ const FerramentasExtra = (() => {
   }
 
   /* ============================================================================ 3. TRAJETO */
-  let traj = { a: null, b: null, pick: null, camada: null, res: null, gps: null, gpsMarker: null, textoA: "", textoB: "" };
+  // paradas: pontos entre a saída (A) e a chegada (B), na ordem da lista: [{ ll, texto, txt }]
+  let traj = { a: null, b: null, paradas: [], otimizar: false, pick: null, camada: null, res: null, gps: null, gpsMarker: null, textoA: "", textoB: "" };
   function pararTrajetoPick() { if (traj.pick) { traj.pick = null; mapa.getContainer().classList.remove("cursor-desenho"); FerramentasMapa.atualizarFlag(); } }
   function abrirTrajeto() { FerramentasMapa.pararTudo("extra"); App.abrirPersonalizado("trajeto", renderTrajeto); }
   const fmtTempo = s => { const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`; };
@@ -202,43 +203,82 @@ const FerramentasExtra = (() => {
     if (m.type === "turn" || m.type === "end of road" || m.type === "fork" || m.type === "on ramp" || m.type === "off ramp") return `Vire ${lado}${via} (${d})`;
     return `Siga ${lado || "em frente"}${via} (${d})`;
   }
+  // nome de cada ponto na tela: "A", "1", "2"… (paradas), "B"
+  const rotuloPonto = q => q === "a" ? "A" : q === "b" ? "B" : String(+q.slice(1) + 1);
+  const coordTxt = ll => `${ll[0].toFixed(6)}, ${ll[1].toFixed(6)}`;
+  function definirPonto(q, ll) {
+    if (q === "a" || q === "b") { traj[q] = ll; traj[q === "a" ? "textoA" : "textoB"] = coordTxt(ll); traj[q + "Txt"] = coordTxt(ll); }
+    else { const p = traj.paradas[+q.slice(1)]; if (p) { p.ll = ll; p.texto = coordTxt(ll); p.txt = p.texto; } }
+    traj.res = null;
+  }
+  // ordem do trajeto: saída, paradas, chegada (rótulos para a tela)
+  const pontosTrajeto = () => [traj.a, ...traj.paradas.map(p => p.ll), traj.b];
+  const rotulosTrajeto = () => ["A", ...traj.paradas.map((_, i) => String(i + 1)), "B"];
   function renderTrajeto(manter) {
-    const r = traj.res, ga = traj.a && traj.b ? `https://www.google.com/maps/dir/?api=1&origin=${traj.a[0]},${traj.a[1]}&destination=${traj.b[0]},${traj.b[1]}&travelmode=driving` : "";
+    const r = traj.res, pts = pontosTrajeto(), rot = rotulosTrajeto();
+    const meio = traj.paradas.filter(p => p.ll).map(p => `${p.ll[0]},${p.ll[1]}`).join("|");
+    const ga = traj.a && traj.b ? `https://www.google.com/maps/dir/?api=1&origin=${traj.a[0]},${traj.a[1]}&destination=${traj.b[0]},${traj.b[1]}${meio ? "&waypoints=" + encodeURIComponent(meio) : ""}&travelmode=driving` : "";
+    const reta = pts.every(Boolean) ? pts.slice(1).reduce((s, p, i) => s + dist(pts[i], p), 0) : 0;
+    const linhaParada = (p, i) => `<label class="campo">Parada ${i + 1}<div class="linha" style="flex-wrap:nowrap"><input type="text" data-parada="${i}" value="${U.esc(p.texto || "")}" placeholder="Rua, endereço, CEP ou coordenada" style="flex:1">
+        <button type="button" class="sec" data-pick="p${i}" title="Clicar no mapa">Mapa</button>
+        <button type="button" class="sec" data-sobe="${i}" title="Subir" ${i === 0 ? "disabled" : ""}>&uarr;</button>
+        <button type="button" class="sec" data-desce="${i}" title="Descer" ${i === traj.paradas.length - 1 ? "disabled" : ""}>&darr;</button>
+        <button type="button" class="sec" data-tira="${i}" title="Tirar a parada">&times;</button></div></label>`;
     Painel.mostrarPersonalizado(`
-      <div class="det-cab" style="padding-bottom:12px"><div class="tipo">Mapa</div><h3>Trajeto</h3><div class="sub">Digite a rua, o endereço, o CEP ou a coordenada, ou escolha no mapa.</div></div>
+      <div class="det-cab" style="padding-bottom:12px"><div class="tipo">Mapa</div><h3>Trajeto</h3><div class="sub">Digite a rua, o endereço, o CEP ou a coordenada, ou escolha no mapa. Acrescente paradas entre a saída e a chegada.</div></div>
       <div class="bloco">
         <label class="campo" style="margin-top:0">Saída (A)<div class="linha" style="flex-wrap:nowrap"><input type="text" id="inTrajA" value="${U.esc(traj.textoA)}" placeholder="Ex.: Av. Nazaré, 66035-170 ou -1.45, -48.48" style="flex:1">
           <button type="button" class="sec" id="btPickA" title="Clicar no mapa">Mapa</button><button type="button" class="sec" id="btGpsA" title="Usar minha localização">Eu</button></div></label>
+        ${traj.paradas.map(linhaParada).join("")}
+        <div class="linha" style="margin-top:6px"><button type="button" class="sec" id="btMaisParada">+ Adicionar parada</button>
+          ${traj.paradas.length >= 2 ? `<label class="ckline" style="margin:0"><input type="checkbox" id="ckOtimizar" ${traj.otimizar ? "checked" : ""}> Otimizar a ordem das paradas</label>` : ""}</div>
         <label class="campo">Chegada (B)<div class="linha" style="flex-wrap:nowrap"><input type="text" id="inTrajB" value="${U.esc(traj.textoB)}" placeholder="Ex.: Garagem, Rua dos Mundurucus" style="flex:1">
           <button type="button" class="sec" id="btPickB" title="Clicar no mapa">Mapa</button></div></label>
-        <div class="linha botoes"><button type="button" id="btCalcTraj">Calcular trajeto</button><button type="button" class="sec" id="btInverteTraj">Inverter A e B</button><button type="button" class="sec" id="btLimpaTraj">Limpar</button></div>
-        <p class="nota" id="trajMsg">${traj.pick ? `Clique no mapa para marcar o ponto ${traj.pick.toUpperCase()}.` : ""}</p>
+        <div class="linha botoes"><button type="button" id="btCalcTraj">Calcular trajeto</button><button type="button" class="sec" id="btInverteTraj">Inverter o sentido</button><button type="button" class="sec" id="btLimpaTraj">Limpar</button></div>
+        <p class="nota" id="trajMsg">${traj.pick ? `Clique no mapa para marcar o ponto ${rotuloPonto(traj.pick)}.` : ""}</p>
       </div>
       ${r ? `<div class="bloco"><div class="grade">
           <div><small>Distância de carro</small><span><b>${U.fmtKm(r.carro.distance)}</b></span></div>
           <div><small>Tempo de carro</small><span><b>${fmtTempo(r.carro.duration)}</b></span></div>
           <div><small>A pé</small><span>${r.pe ? `${U.fmtKm(r.pe.distance)} · ${fmtTempo(r.pe.duration)}` : "—"}</span></div>
-          <div><small>Linha reta</small><span>${U.fmtKm(dist(traj.a, traj.b))}</span></div>
+          <div><small>Linha reta${traj.paradas.length ? " (somando os trechos)" : ""}</small><span>${U.fmtKm(reta)}</span></div>
         </div>
-        <p class="nota">Tempo estimado sem trânsito pelo mapa do OpenStreetMap. Para caminhão, considere tempo maior.</p>
+        ${r.carro.legs.length > 1 ? `<table class="tabela" style="margin-top:8px"><thead><tr><th>Trecho</th><th>Carro</th><th>Tempo</th></tr></thead><tbody>
+          ${r.carro.legs.map((l, i) => `<tr><td>${rot[i]} → ${rot[i + 1]}</td><td>${U.fmtKm(l.distance)}</td><td>${fmtTempo(l.duration)}</td></tr>`).join("")}</tbody></table>` : ""}
+        ${r.otimizado ? `<p class="nota">Ordem das paradas otimizada pelo menor tempo (a lista acima já está na nova ordem).</p>` : ""}
+        <p class="nota">Tempo estimado sem trânsito pelo mapa do OpenStreetMap, sem contar o tempo parado em cada ponto. Para caminhão, considere tempo maior.</p>
         <div class="linha botoes">
           <a class="sec" href="${ga}" target="_blank" rel="noopener" style="text-decoration:none">Abrir no Google Maps (GPS) &#8599;</a>
           <button type="button" class="sec" id="btGpsSeguir">${traj.gps ? "Parar de seguir minha posição" : "Seguir minha posição"}</button>
           ${R.planejamento !== false ? `<button type="button" class="sec" id="btTrajSalvar">Salvar no planejamento</button>` : ""}
         </div></div>
-        <div class="bloco"><h2>Caminho</h2><div class="hist">${r.carro.legs[0].steps.map(st => `<div><span>${U.esc(textoPasso(st))}</span></div>`).join("")}</div></div>` : ""}`, manter);
+        <div class="bloco"><h2>Caminho</h2><div class="hist">${r.carro.legs.map((l, i) => l.steps.map(st => `<div><span>${U.esc(st.maneuver && st.maneuver.type === "arrive" ? (i < r.carro.legs.length - 1 ? `Chegada à parada ${rot[i + 1]}` : "Chegada ao destino (B)") : textoPasso(st))}</span></div>`).join("")).join("")}</div></div>` : ""}`, manter);
     const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+    const det = $("detalhe");
     $("inTrajA").oninput = ev => traj.textoA = ev.target.value; $("inTrajB").oninput = ev => traj.textoB = ev.target.value;
-    [["inTrajA"], ["inTrajB"]].forEach(([id]) => $(id).onkeydown = ev => { if (ev.key === "Enter") calcularTrajeto(); });
+    det.querySelectorAll("[data-parada]").forEach(el => el.oninput = ev => { traj.paradas[+el.dataset.parada].texto = ev.target.value; });
+    det.querySelectorAll("#inTrajA, #inTrajB, [data-parada]").forEach(el => el.onkeydown = ev => { if (ev.key === "Enter") calcularTrajeto(); });
+    det.querySelectorAll("[data-pick]").forEach(el => el.onclick = () => escolherNoMapa(el.dataset.pick));
+    const mover = (i, j) => { const P = traj.paradas; [P[i], P[j]] = [P[j], P[i]]; traj.res = null; marcarAB(); renderTrajeto(true); };
+    det.querySelectorAll("[data-sobe]").forEach(el => el.onclick = () => mover(+el.dataset.sobe, +el.dataset.sobe - 1));
+    det.querySelectorAll("[data-desce]").forEach(el => el.onclick = () => mover(+el.dataset.desce, +el.dataset.desce + 1));
+    det.querySelectorAll("[data-tira]").forEach(el => el.onclick = () => { traj.paradas.splice(+el.dataset.tira, 1); traj.res = null; marcarAB(); renderTrajeto(true); });
+    on("btMaisParada", () => { traj.paradas.push({ ll: null, texto: "", txt: "" }); traj.res = null; renderTrajeto(true); const novos = det.querySelectorAll("[data-parada]"); if (novos.length) novos[novos.length - 1].focus(); });
+    const ck = $("ckOtimizar"); if (ck) ck.onchange = ev => { traj.otimizar = ev.target.checked; };
     on("btPickA", () => escolherNoMapa("a")); on("btPickB", () => escolherNoMapa("b"));
-    on("btGpsA", () => minhaPosicao(ll => { traj.a = ll; traj.textoA = `${ll[0].toFixed(6)}, ${ll[1].toFixed(6)}`; marcarAB(); renderTrajeto(true); }));
+    on("btGpsA", () => minhaPosicao(ll => { definirPonto("a", ll); marcarAB(); renderTrajeto(true); }));
     on("btCalcTraj", calcularTrajeto);
-    on("btInverteTraj", () => { [traj.a, traj.b] = [traj.b, traj.a]; [traj.textoA, traj.textoB] = [traj.textoB, traj.textoA]; traj.res = null; marcarAB(); renderTrajeto(true); if (traj.a && traj.b) calcularTrajeto(); });
-    on("btLimpaTraj", () => { traj = { ...traj, a: null, b: null, res: null, textoA: "", textoB: "" }; if (traj.camada) traj.camada.clearLayers(); renderTrajeto(true); });
+    on("btInverteTraj", () => { [traj.a, traj.b] = [traj.b, traj.a]; [traj.textoA, traj.textoB] = [traj.textoB, traj.textoA]; [traj.aTxt, traj.bTxt] = [traj.bTxt, traj.aTxt]; traj.paradas.reverse(); traj.res = null; marcarAB(); renderTrajeto(true); if (traj.a && traj.b) calcularTrajeto(); });
+    on("btLimpaTraj", () => { traj = { ...traj, a: null, b: null, paradas: [], res: null, textoA: "", textoB: "" }; if (traj.camada) traj.camada.clearLayers(); renderTrajeto(true); });
     on("btGpsSeguir", alternarGps);
-    on("btTrajSalvar", () => { const c = traj.res.carro.geometry.coordinates.map(p => [p[1], p[0]]); FerramentasMapa.adicionarItens([FerramentasMapa.novoItem("linha", c, { nome: "Trajeto " + (traj.textoA || "A") + " → " + (traj.textoB || "B"), obs: fmtTempo(traj.res.carro.duration) + " de carro" })]); });
+    on("btTrajSalvar", () => {
+      const c = traj.res.carro.geometry.coordinates.map(p => [p[1], p[0]]);
+      const nomes = [traj.textoA || "A", ...traj.paradas.map((p, i) => p.texto || "parada " + (i + 1)), traj.textoB || "B"];
+      FerramentasMapa.adicionarItens([FerramentasMapa.novoItem("linha", c, { nome: "Trajeto " + (traj.paradas.length ? `A → ${traj.paradas.length} parada(s) → B` : (traj.textoA || "A") + " → " + (traj.textoB || "B")),
+        obs: `${fmtTempo(traj.res.carro.duration)} de carro · ${nomes.join(" → ")}` })]);
+    });
   }
-  function escolherNoMapa(qual) { FerramentasMapa.pararTudo("extra"); alternarRegua(false); traj.pick = qual; mapa.getContainer().classList.add("cursor-desenho"); FerramentasMapa.atualizarFlag(); const m = $("trajMsg"); if (m) m.textContent = `Clique no mapa para marcar o ponto ${qual.toUpperCase()}.`; }
+  function escolherNoMapa(qual) { FerramentasMapa.pararTudo("extra"); alternarRegua(false); traj.pick = qual; mapa.getContainer().classList.add("cursor-desenho"); FerramentasMapa.atualizarFlag(); const m = $("trajMsg"); if (m) m.textContent = `Clique no mapa para marcar o ponto ${rotuloPonto(qual)}.`; }
   function minhaPosicao(fn) {
     if (!navigator.geolocation) { alert("Este aparelho não informa a localização."); return; }
     navigator.geolocation.getCurrentPosition(p => fn([p.coords.latitude, p.coords.longitude]), e => alert("Não foi possível pegar a localização: " + e.message), { enableHighAccuracy: true, timeout: 15000 });
@@ -253,6 +293,7 @@ const FerramentasExtra = (() => {
       L.polyline(c, { color: "#0b6bcb", weight: 5.5, opacity: 1, interactive: false }).addTo(traj.camada);
     }
     if (traj.a) pin(traj.a, "A", "#1e7b34");
+    traj.paradas.forEach((p, i) => { if (p.ll) pin(p.ll, String(i + 1), "#e8590c"); });
     if (traj.b) pin(traj.b, "B", "#c0392b");
   }
   async function resolver(txt) { const r = await geocodificar(txt); if (!r.length) throw new Error(`"${txt}" não encontrado`); return r[0].ll; }
@@ -262,11 +303,26 @@ const FerramentasExtra = (() => {
       msg("Calculando…");
       if (traj.textoA && (!traj.a || traj.textoA !== traj.aTxt)) { traj.a = await resolver(traj.textoA); traj.aTxt = traj.textoA; }
       if (traj.textoB && (!traj.b || traj.textoB !== traj.bTxt)) { traj.b = await resolver(traj.textoB); traj.bTxt = traj.textoB; }
+      // paradas: as que estão vazias saem da lista; as digitadas são procuradas como a saída e a chegada
+      traj.paradas = traj.paradas.filter(p => p.ll || (p.texto || "").trim());
+      for (const p of traj.paradas) if (p.texto && (!p.ll || p.texto !== p.txt)) { p.ll = await resolver(p.texto); p.txt = p.texto; }
       if (!traj.a || !traj.b) { msg("Informe a saída e a chegada."); return; }
-      const par = `${traj.a[1]},${traj.a[0]};${traj.b[1]},${traj.b[0]}?overview=full&geometries=geojson&steps=true`;
-      const [car, pe] = await Promise.all([fetch(CFG.rotas.carro + par).then(r => r.json()), fetch(CFG.rotas.pe + par).then(r => r.json()).catch(() => null)]);
+      const pts = pontosTrajeto(), coords = pts.map(p => `${p[1]},${p[0]}`).join(";");
+      let car, otimizado = false;
+      if (traj.otimizar && traj.paradas.length >= 2) {
+        // serviço "trip" do OSRM: mantém A no começo e B no fim e escolhe a melhor ordem das paradas
+        const t = await fetch(CFG.rotas.carro.replace("/route/", "/trip/") + coords + "?source=first&destination=last&roundtrip=false&overview=full&geometries=geojson&steps=true").then(r => r.json());
+        if (t && t.code === "Ok" && t.trips && t.trips[0]) {
+          const ordem = t.waypoints.map((w, i) => ({ i, pos: w.waypoint_index })).sort((x, y) => x.pos - y.pos).map(x => x.i);
+          traj.paradas = ordem.slice(1, -1).map(i => traj.paradas[i - 1]);
+          car = { code: "Ok", routes: [t.trips[0]] }; otimizado = true;
+        }
+      }
+      if (!car) car = await fetch(CFG.rotas.carro + coords + "?overview=full&geometries=geojson&steps=true").then(r => r.json());
+      const coordsPe = pontosTrajeto().map(p => `${p[1]},${p[0]}`).join(";");
+      const pe = await fetch(CFG.rotas.pe + coordsPe + "?overview=full&geometries=geojson&steps=false").then(r => r.json()).catch(() => null);
       if (!car || car.code !== "Ok" || !car.routes || !car.routes[0]) throw new Error("não foi possível traçar a rota agora");
-      traj.res = { carro: car.routes[0], pe: pe && pe.code === "Ok" && pe.routes[0] ? pe.routes[0] : null };
+      traj.res = { carro: car.routes[0], pe: pe && pe.code === "Ok" && pe.routes[0] ? pe.routes[0] : null, otimizado };
       marcarAB();
       mapa.fitBounds(L.polyline(traj.res.carro.geometry.coordinates.map(p => [p[1], p[0]])).getBounds(), { padding: [50, 50] });
       renderTrajeto(true);
@@ -408,11 +464,10 @@ const FerramentasExtra = (() => {
         regua.pts.push([ev.latlng.lat, ev.latlng.lng]); desenharRegua(); return;
       }
       if (traj.pick) {
-        const ll = [ev.latlng.lat, ev.latlng.lng], q = traj.pick;
-        traj[q] = ll; traj[q === "a" ? "textoA" : "textoB"] = `${ll[0].toFixed(6)}, ${ll[1].toFixed(6)}`; traj[q + "Txt"] = traj[q === "a" ? "textoA" : "textoB"];
-        traj.res = null; pararTrajetoPick(); marcarAB();
+        definirPonto(traj.pick, [ev.latlng.lat, ev.latlng.lng]);
+        pararTrajetoPick(); marcarAB();
         if (App.ui.aberto && App.ui.aberto.tipo === "trajeto") renderTrajeto(true);
-        if (traj.a && traj.b) calcularTrajeto();
+        if (traj.a && traj.b && traj.paradas.every(p => p.ll || !(p.texto || "").trim())) calcularTrajeto();
       }
     });
     mapa.on("mousemove", ev => { if (regua.ativa && !regua.modoRua && regua.pts.length && !regua.fixa) { regua.cursor = [ev.latlng.lat, ev.latlng.lng]; desenharRegua(); } });

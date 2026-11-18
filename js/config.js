@@ -22,6 +22,18 @@ window.CFG = {
 
   // serviço que entra no % de capina das áreas
   servicoCapina: /capin/i,
+
+  // Serviços do seletor no topo do mapa. "teste" reconhece o serviço escrito no lançamento (coluna Serviço).
+  // Meta e recorrência de cada área vêm da aba Areas:
+  //   capina   -> colunas "Extensão" e "Recorrência (dias)" (as que já existem)
+  //   outros   -> colunas que começam pelo nome do serviço, ex.: "Roçagem - Extensão (km)" e "Roçagem - Recorrência (dias)"
+  // Na aba Ciclos, a coluna "Serviço" (opcional) diz de qual serviço é o ciclo; sem ela, o ciclo é da capina.
+  servicosMapa: [
+    { id: "capina",  nome: "Capinação e raspagem",      curto: "Capina",          verbo: "capinadas",   ultimo: "Última capina",  teste: /capin|rasp/i },
+    { id: "rocagem", nome: "Roçagem",                   curto: "Roçagem",         verbo: "roçadas",     ultimo: "Última roçagem", teste: /ro[cç]a/i, colunas: "rocagem" },
+    { id: "mutirao", nome: "Mutirão",                   curto: "Mutirão",         verbo: "com mutirão", ultimo: "Último mutirão", teste: /mutir/i, colunas: "mutirao" },
+    { id: "pontos",  nome: "Pontos críticos (entulho)", curto: "Pontos críticos", pontos: true }
+  ],
   botaoPowerBI: true,
 
   // Liga (true) ou desliga (false) cada recurso novo sem mexer no resto do código
@@ -31,6 +43,7 @@ window.CFG = {
     trajeto: true,          // botão Trajeto (rota de um ponto a outro, com tempo e GPS)
     camadas: true,          // botão Camadas (subir shapefile, KML, KMZ, GeoJSON do QGIS / My Maps)
     planejamento: true,     // botão Planejar / Desenhar Rotas (linhas, áreas e pontos)
+    capinaNoPlanejamento: true, // no Planejar, mostra "Capina das linhas: N equipes por dia" (o Mapa de Planejamento do hub desliga)
     sincronizarQgis: true,  // ligar o planejamento a um arquivo .geojson aberto no QGIS
     formulario: true        // aba Formulário no Dashboard
   },

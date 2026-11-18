@@ -101,7 +101,7 @@ const Mapa = (() => {
   function dicaTrecho(x, res) {
     const A = res.porArea[x.area], k = LOC.chaveDoSeg(x.si), r = A && A.ruas[k], total = r ? r.total : ((Calc.RUAS_AREA[x.area] || {})[k] || {}).total, feito = r ? Math.min(r.feito, r.total || r.feito) : 0;
     const cor = C.situ[x.s];
-    return `<b>${U.esc(LOC.nomeDe(x.si))}</b> · Área ${x.area}<br>Última capina: ${x.u && x.u.d ? U.fmtData(x.u.d) + ` (há ${x.dias} dia${x.dias === 1 ? "" : "s"})` : "—"}
+    return `<b>${U.esc(LOC.nomeDe(x.si))}</b> · Área ${x.area}<br>${res.svc && res.svc.ultimo || "Última capina"}: ${x.u && x.u.d ? U.fmtData(x.u.d) + ` (há ${x.dias} dia${x.dias === 1 ? "" : "s"})` : "—"}
       <br><span class="chip" style="background:${cor};${x.s === "vencendo" ? "color:#1f2a24" : ""}">${TXT_SITU[x.s]}</span>${A && A.recorrencia ? ` · recorrência ${A.recorrencia} dias` : ""}
       ${total ? `<br>Rua: <b>${U.fmtKm(feito)}</b> de ${U.fmtKm(total)} = <b>${U.fmtPct(feito / total * 100)}%</b>` : ""}${A && A.plano && feito ? `<br>${U.fmt(feito / A.plano * 100, 2)}% da área` : ""}<br>Trecho: ${U.fmtKm(LOC.comprSeg(x.si))}`;
   }

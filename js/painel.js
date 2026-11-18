@@ -9,17 +9,30 @@ const Painel = (() => {
   /* ---------- resumo (tela principal simplificada e 100% clicável) ---------- */
   function resumo(res, situ, ui) {
     const A = Object.values(res.porArea).sort((a, b) => a.area - b.area);
-    $("totKm").textContent = U.fmt(res.totPlano / 1000) + " km";
+    const svc = res.svc || { curto: "Capina" }, semMeta = !res.totPlano;
+    $("totKm").textContent = semMeta ? "—" : U.fmt(res.totPlano / 1000) + " km";
+    if ($("rotTotKm")) $("rotTotKm").textContent = svc.pontos ? "Pontos críticos" : "Meta de " + svc.curto.toLowerCase();
+    if (svc.pontos) $("totKm").textContent = GEO.pontos.length;
     $("totEq").textContent = A.reduce((s, a) => s + (+a.equipes || 0), 0);
     $("totAreas").textContent = A.length;
     const pk = res.totPlano ? res.totFeito / res.totPlano * 100 : 0;
     const temCiclo = A.some(a => a.ciclo), nomeCiclo = res.ciclo ? "ciclo " + res.ciclo : "ciclo atual";
-    $("rotCiclo").textContent = res.ciclo ? "Capina no " + nomeCiclo : temCiclo ? "Capina no ciclo atual" : "Capina no período";
-    $("kmPct").textContent = U.fmt(pk, 1) + "%";
-    $("kmTxt").textContent = `${U.fmt(res.totFeito / 1000)} de ${U.fmt(res.totPlano / 1000)} km`;
-    $("kmBarra").style.width = Math.min(pk, 100) + "%";
-    $("kmFalta").textContent = U.fmt(Math.max(res.totPlano - res.totFeito, 0) / 1000, 1) + " km";
-    $("areasOk").textContent = `${A.filter(a => a.plano && a.feito >= a.plano).length}/${A.length} áreas concluídas`;
+    $("rotCiclo").textContent = `${svc.curto} no ${res.ciclo ? nomeCiclo : temCiclo ? "ciclo atual" : "período"}`;
+    if (semMeta) {
+      // serviço sem meta na aba Areas: mostra o que foi executado e como cadastrar a meta
+      $("kmPct").textContent = U.fmt((res.totExec || 0) / 1000) + " km";
+      $("kmTxt").textContent = "executados · sem meta cadastrada";
+      $("kmBarra").style.width = "0%";
+      $("kmFalta").textContent = "—";
+      $("areasOk").textContent = svc.colunas ? `Meta: coluna "${svc.curto} - Extensão (km)" na aba Areas` : "";
+    } else {
+      $("kmPct").textContent = U.fmt(pk, 1) + "%";
+      $("kmTxt").textContent = `${U.fmt(res.totFeito / 1000)} de ${U.fmt(res.totPlano / 1000)} km`;
+      $("kmBarra").style.width = Math.min(pk, 100) + "%";
+      $("kmFalta").textContent = U.fmt(Math.max(res.totPlano - res.totFeito, 0) / 1000, 1) + " km";
+      $("areasOk").textContent = `${A.filter(a => a.plano && a.feito >= a.plano).length}/${A.length} áreas concluídas`;
+    }
+    if ($("rotSitu")) $("rotSitu").textContent = `Situação das ruas (tempo desde ${svc.ultimo ? svc.ultimo.toLowerCase().replace(/^últim([ao])/, "a últim$1").replace(/^a último/, "o último") : "a capina"})`;
 
     const st = GEO.pontos.map(p => Calc.statusPonto(res.pontos[p.cod])), col = st.filter(s => s === "coletado").length, nao = st.filter(s => s === "nao").length, np = st.length;
     $("ptPct").textContent = U.fmt(np ? col / np * 100 : 0, 1) + "%";
@@ -32,7 +45,11 @@ const Painel = (() => {
     $("exFora").textContent = v.filter(e => e.fora).length;
     $("exNao").textContent = v.filter(e => !e.loc.ok).length;
     if ($("exAprox")) $("exAprox").textContent = v.filter(e => e.loc.ok && e.loc.tipo !== "trecho").length;
-    $("mini").innerHTML = `<span>${res.ciclo ? "Ciclo " + U.esc(res.ciclo) : temCiclo ? "Ciclo atual" : "Executado"} <b>${U.fmt(pk, 1)}%</b></span><span>Falta <b>${U.fmt(Math.max(res.totPlano - res.totFeito, 0) / 1000, 0)} km</b></span><span>Pontos <b>${col}/${np}</b></span>`;
+    $("mini").innerHTML = svc.pontos
+      ? `<span>Pontos coletados <b>${col}/${np}</b></span><span>Não coletados <b>${nao}</b></span>`
+      : semMeta
+      ? `<span>${U.esc(svc.curto)} <b>${U.fmt((res.totExec || 0) / 1000, 1)} km</b></span><span>${v.length} lançamentos</span>`
+      : `<span>${U.esc(svc.curto)} · ${res.ciclo ? "ciclo " + U.esc(res.ciclo) : temCiclo ? "ciclo atual" : "executado"} <b>${U.fmt(pk, 1)}%</b></span><span>Falta <b>${U.fmt(Math.max(res.totPlano - res.totFeito, 0) / 1000, 0)} km</b></span>`;
 
     const fAtivos = [$("dtIni").value || $("dtFim").value ? "Datas" : "", $("fServico").value ? "Serviço" : "", $("fSup").value ? "Supervisor" : ""].filter(Boolean);
     const badgeFiltro = $("badgeFiltros");
@@ -42,6 +59,15 @@ const Painel = (() => {
 
     $("listaAreas").innerHTML = A.map(a => {
       const nPts = GEO.pontos.filter(x => x.area === a.area).length, cPts = GEO.pontos.filter(x => x.area === a.area && Calc.statusPonto(res.pontos[x.cod]) === "coletado").length;
+      if (svc.pontos) {
+        // aba Pontos críticos: cada área mostra os pontos coletados
+        const nNao = GEO.pontos.filter(x => x.area === a.area && Calc.statusPonto(res.pontos[x.cod]) === "nao").length, p = nPts ? cPts / nPts * 100 : 0;
+        return `<div class="area${ui.sel && ui.sel.tipo === "area" && ui.sel.id === a.area ? " sel" : ""}" data-area="${a.area}" role="button" tabindex="0">
+          <div class="cor" style="background:${C.areaMyMaps[a.area]}"></div>
+          <div class="info"><div class="l1"><span><b>Área ${a.area}</b> · ${U.esc(a.supervisor)}</span><b>${nPts ? U.fmtPct(p) + "%" : "—"}</b></div>
+          <div class="barra"><i style="width:${Math.min(p, 100)}%"></i></div>
+          <div class="l2"><span>${nPts ? `${cPts} de ${nPts} pontos coletados` : "Sem pontos críticos"}</span><span>${nNao ? `<b class="vermelho">${nNao} não coletados</b>` : ""}</span></div></div></div>`;
+      }
       const cor = ui.modo === "andamento" ? Mapa.corFaixa(a.pct) : C.areaMyMaps[a.area];
       const prazoTxt = a.ciclo && a.recorrencia && a.diasCiclo
         ? (a.diasCiclo > a.recorrencia ? `<span class="tag-prazo alerta">Dia ${a.diasCiclo}/${a.recorrencia}</span>` : `<span class="tag-prazo ok">Dia ${a.diasCiclo}/${a.recorrencia}</span>`)
@@ -50,7 +76,7 @@ const Painel = (() => {
         <div class="cor" style="background:${cor}"></div>
         <div class="info"><div class="l1"><span><b>Área ${a.area}</b> · ${U.esc(a.supervisor)}</span><b>${a.semCiclo ? `sem ${U.esc(res.ciclo)}` : `${a.ciclo ? U.esc(a.ciclo.ciclo) + " · " : ""}${U.fmtPct(a.pct)}%`}</b></div>
         <div class="barra"><i style="width:${Math.min(a.pct, 100)}%"></i></div>
-        <div class="l2"><span>${U.fmtKm(Math.min(a.feito, a.plano))} de ${U.fmtKm(a.plano)} ${prazoTxt}</span><span>${nPts ? `${cPts}/${nPts} pontos` : ""}</span></div></div></div>`;
+        <div class="l2"><span>${a.plano ? `${U.fmtKm(Math.min(a.feito, a.plano))} de ${U.fmtKm(a.plano)}` : `${U.fmtKm(a.feito)} executados`} ${prazoTxt}</span></div></div></div>`;
     }).join("");
     ligar($("situGeral"));
     $("listaAreas").querySelectorAll(".area").forEach(el => { const n = +el.dataset.area; el.onclick = () => App.abrirArea(n, true); el.onkeydown = ev => { if (ev.key === "Enter") App.abrirArea(n, true); }; });
@@ -144,7 +170,7 @@ const Painel = (() => {
       <!-- ABA 2: RUAS & LANÇAMENTOS -->
       <div class="aba-conteudo" data-painel-aba="ruas" ${abaAreaAtiva !== "ruas" ? "hidden" : ""}>
         ${situ ? `<div class="bloco"><h2>Filtrar ruas por situação</h2><div class="situ">${situacaoHtml(situ.resumo[n] || {}, ui, "a")}</div></div>` : ""}
-        <div class="bloco rolar-x"><h2>${todas ? `Ruas capinadas (${trab.length})` : `Ruas filtradas (${ruas.length})`}</h2>
+        <div class="bloco rolar-x"><h2>${todas ? `Ruas ${res.svc && res.svc.verbo || "capinadas"} (${trab.length})` : `Ruas filtradas (${ruas.length})`}</h2>
           ${ruas.length ? `<table class="tabela"><thead><tr><th>Rua</th><th>Feito</th><th>Total</th><th>%</th><th>Última</th></tr></thead><tbody>
           ${ruas.slice(0, 80).map(r => `<tr${r.k ? ` class="clicavel" data-rua-k="${U.esc(r.k)}" data-rua-area="${n}" title="Consultar esta rua"` : ""}><td class="quebra">${U.esc(r.nome)}<br>${chipSitu(r.s)}</td><td>${U.fmtKm(Math.min(r.feito, r.total || r.feito))}</td><td>${r.total ? U.fmtKm(r.total) : "—"}</td><td><b>${r.total ? U.fmtPct(Math.min(r.feito, r.total) / r.total * 100) + "%" : "—"}</b></td><td>${r.ult ? U.fmtData(r.ult).slice(0,5) + `<br>há ${r.dias} dias` : "—"}</td></tr>`).join("")}
           </tbody></table>${ruas.length > 80 ? `<p class="nota">Mostrando 80 de ${ruas.length} ruas.</p>` : ""}` : `<p class="nota">Nenhuma rua nesta situação.</p>`}
@@ -355,7 +381,7 @@ const Painel = (() => {
     const sem = Calc.semanas(res), A = Object.values(res.porArea).sort((a, b) => a.area - b.area);
     const rot = k => { if (k === "sem-data") return "Sem data"; const a = new Date(k + "T00:00:00"), b = new Date(a); b.setDate(b.getDate() + 6); return a.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " a " + b.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }); };
     const ult = sem.filter(s => s.k !== "sem-data").slice(-1)[0];
-    mostrar(`<div class="det-cab" style="padding-bottom:12px"><div class="tipo">Capinação e raspagem</div><h3>Resumo semanal</h3><button class="sec" type="button" id="btXlsSem" style="margin-top:10px">Baixar planilha (.xlsx)</button></div>
+    mostrar(`<div class="det-cab" style="padding-bottom:12px"><div class="tipo">${U.esc(res.svc && res.svc.nome || "Capinação e raspagem")}</div><h3>Resumo semanal</h3><button class="sec" type="button" id="btXlsSem" style="margin-top:10px">Baixar planilha (.xlsx)</button></div>
       <div class="bloco rolar-x"><table class="tabela"><thead><tr><th>Semana</th><th>Lançamentos</th><th>Executado</th><th>% do total</th></tr></thead><tbody>
       ${sem.map(s => `<tr><td>${rot(s.k)}</td><td>${s.n}</td><td>${U.fmtKm(s.m)}</td><td>${U.fmt(res.totPlano ? s.m / res.totPlano * 100 : 0, 1)}%</td></tr>`).join("") || `<tr><td colspan="4">—</td></tr>`}</tbody></table></div>
       ${ult ? `<div class="bloco rolar-x"><h2>Por área · ${rot(ult.k)}</h2><table class="tabela"><thead><tr><th>Área</th><th>Supervisor</th><th>Executado</th><th>% da área</th></tr></thead><tbody>

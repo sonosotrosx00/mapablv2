@@ -5,8 +5,14 @@ const App = (() => {
   const TODAS = ["emdia", "vencendo", "vencido", "semrec", "nunca"];
 
   let base = null, res = null, situ = null, arqExcel = null;
-  let fonte = U.ler("fonte_site", CFG.fonteInicial || (PLANILHA_LOCAL ? "local" : "google"));
+  // ?consulta = modo só leitura para chefia / prefeitura (sem planilha, formulários e ferramentas de edição)
+  const params0 = new URLSearchParams(location.search);
+  const CONSULTA = params0.has("consulta");
+  let fonte = CONSULTA ? "google" : U.ler("fonte_site", CFG.fonteInicial || (PLANILHA_LOCAL ? "local" : "google"));
+  const SVC_IDS = (CFG.servicosMapa || []).map(s => s.id);
+  const svcInicial = [params0.get("servico"), U.ler("servico", "capina")].find(s => s && SVC_IDS.includes(s)) || "capina";
   const ui = {
+    svc: svcInicial,
     modo: U.ler("modo", "areas"),
     mostrar: U.ler("mostrar", { pontos: true, exec: true, faltam: false, rotas: false, recl: true }),
     focoLigado: U.ler("foco", false), foco: null, areaAberta: null,
@@ -28,7 +34,41 @@ const App = (() => {
     }
     return U.hoje();
   }
-  const filtros = () => ({ ini: lerData("dtIni"), fim: lerData("dtFim"), servico: $("fServico").value, supervisor: $("fSup").value, ref: dataRef(), ciclo: ui.ciclo });
+  const filtros = () => ({ ini: lerData("dtIni"), fim: lerData("dtFim"), servico: "", supervisor: $("fSup").value, ref: dataRef(), ciclo: ui.ciclo, svc: ui.svc });
+
+  /* ---------- serviço escolhido no topo ---------- */
+  const svcAtual = () => Calc.servico(ui.svc);
+  // o que o mapa desenha depende do serviço: em Pontos críticos, sem ruas e só com a divisão das áreas
+  function uiMapa() {
+    const s = svcAtual();
+    if (s.pontos) return Object.assign({}, ui, { modo: "areas", mostrar: Object.assign({}, ui.mostrar, { exec: false, faltam: false, recl: false }) });
+    if (s.id !== "capina") return Object.assign({}, ui, { mostrar: Object.assign({}, ui.mostrar, { recl: false }) });
+    return ui;
+  }
+  function marcarServico() {
+    const s = svcAtual();
+    document.body.classList.remove(...SVC_IDS.map(id => "svc-" + id));
+    document.body.classList.add("svc-" + s.id);
+    document.body.classList.toggle("svc-pontos", !!s.pontos);
+    document.querySelectorAll("#segSvc button").forEach(b => { const on = b.dataset.svc === s.id; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+    const lk = $("lnkConsulta"); if (lk) lk.href = linkConsulta();
+  }
+  function linkConsulta() { return location.origin + location.pathname + "?consulta&servico=" + encodeURIComponent(ui.svc); }
+  function definirServico(id) {
+    if (!SVC_IDS.includes(id) || id === ui.svc) return;
+    ui.svc = id; U.guardar("servico", id);
+    ui.ciclo = "";                                   // cada serviço tem os seus ciclos
+    ui.mostrar.pontos = !!svcAtual().pontos;         // pinos dos pontos críticos: ligados só na aba deles (dá para ligar na Visão do Mapa)
+    U.guardar("mostrar", ui.mostrar); sincronizarCaixa();
+    const p = new URLSearchParams(location.search); p.set("servico", id);
+    history.replaceState(null, "", location.pathname + "?" + p.toString().replace(/consulta=(&|$)/, "consulta$1") + location.hash);
+    marcarServico(); fechar(); recalcular();
+  }
+  function montarSeletor() {
+    $("segSvc").innerHTML = (CFG.servicosMapa || []).map(s => `<button type="button" role="tab" data-svc="${U.esc(s.id)}" title="${U.esc(s.nome)}">${U.esc(s.curto)}</button>`).join("");
+    $("segSvc").querySelectorAll("button").forEach(b => b.onclick = () => definirServico(b.dataset.svc));
+    marcarServico();
+  }
 
   function periodo(tipo) {
     const h = dataRef(), ini = $("dtIni"), fim = $("dtFim");
@@ -77,9 +117,10 @@ const App = (() => {
     situ = Calc.situacaoRuas(res);
     sincronizarCiclo();
     ui.foco = ui.focoLigado ? ui.areaAberta : null;
-    if (typeof Reclamacoes !== "undefined") Reclamacoes.preparar(base, res);
-    Mapa.render(res, ui, situ);
-    if (typeof Reclamacoes !== "undefined") { Reclamacoes.desenhar(ui); Reclamacoes.resumo(); }
+    // reclamações são de capina: só analisa com os lançamentos da capina
+    if (typeof Reclamacoes !== "undefined" && ui.svc === "capina") Reclamacoes.preparar(base, res);
+    Mapa.render(res, uiMapa(), situ);
+    if (typeof Reclamacoes !== "undefined") { Reclamacoes.desenhar(uiMapa()); Reclamacoes.resumo(); }
     Painel.resumo(res, situ, ui);
     reabrir();
   }
@@ -102,7 +143,7 @@ const App = (() => {
     else if (a.tipo === "estudio" && window.FerramentasMapa) FerramentasMapa.abrirEstudioPainel();
     else if ((a.tipo === "camadas" || a.tipo === "trajeto") && window.FerramentasExtra) FerramentasExtra.reabrir(a.tipo);
   }
-  function redesenharMapa() { ui.foco = ui.focoLigado ? ui.areaAberta : null; Mapa.render(res, ui, situ); if (typeof Reclamacoes !== "undefined") Reclamacoes.desenhar(ui); }
+  function redesenharMapa() { ui.foco = ui.focoLigado ? ui.areaAberta : null; Mapa.render(res, uiMapa(), situ); if (typeof Reclamacoes !== "undefined") Reclamacoes.desenhar(uiMapa()); }
 
   /* ---------- painel: abrir / fechar ---------- */
   function abrir(tipo, id) {
@@ -274,6 +315,8 @@ const App = (() => {
 
   /* ---------- início ---------- */
   async function iniciar() {
+    if (CONSULTA) document.body.classList.add("consulta");
+    montarSeletor();
     Mapa.init({
       // com régua, desenho, Street View ou escolha de ponto ligados, o clique é da ferramenta (não abre a área/ponto)
       area: (n, z) => { if (!window.FERRAMENTA_ATIVA || z) abrirArea(n, !!z); },
@@ -321,6 +364,11 @@ const App = (() => {
     $("inExcel").onchange = e => { arqExcel = e.target.files[0] || null; fonte = "excel"; U.guardar("fonte_site", fonte); aplicarFonte(); carregar(); };
     $("inLink").value = U.ler("planilha", "") || CFG.planilha;
     $("btLink").onclick = () => { U.guardar("planilha", $("inLink").value.trim()); carregar(); };
+    if ($("btLinkConsulta")) $("btLinkConsulta").onclick = async () => {
+      const b = $("btLinkConsulta"), t = b.textContent;
+      try { await navigator.clipboard.writeText(linkConsulta()); b.textContent = "Link copiado!"; } catch (e) { prompt("Copie o link:", linkConsulta()); }
+      setTimeout(() => b.textContent = t, 2000);
+    };
     marcarPeriodo("tudo");
     const h = await idb("get"); if (h) arqExcel = h;
     aplicarFonte();
@@ -331,6 +379,7 @@ const App = (() => {
     aplicarHashUrl();
     window.addEventListener("hashchange", aplicarHashUrl);
     window.addEventListener("storage", ev => {
+      if (CONSULTA) return; // a consulta lê sempre a planilha online
       if (ev.key === "capina_fonte_site") { fonte = U.ler("fonte_site", fonte); aplicarFonte(); carregar(); }
       else if (ev.key === "capina_planilha_editada_teste" || ev.key === "capina_ultimo_envio") carregar();
     });
@@ -351,5 +400,5 @@ const App = (() => {
 
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", iniciar) : iniciar();
 
-  return { abrirArea, abrirPonto, abrirExec, abrirRua, abrirEquipe, abrirLista, abrirPersonalizado, filtrarPonto, filtrarEquipe, filtrarLoc, alternarMapaLimpo, fechar, soEste, alternarRota, clicarSituacao, todasSituacoes, recalcular, carregar, usarPlanilhaEditada, definirCiclo, get res() { return res; }, get ui() { return ui; }, get base() { return base; } };
+  return { abrirArea, abrirPonto, abrirExec, abrirRua, abrirEquipe, abrirLista, abrirPersonalizado, filtrarPonto, filtrarEquipe, filtrarLoc, alternarMapaLimpo, fechar, soEste, alternarRota, clicarSituacao, todasSituacoes, recalcular, carregar, usarPlanilhaEditada, definirCiclo, definirServico, CONSULTA, get res() { return res; }, get ui() { return ui; }, get base() { return base; } };
 })();

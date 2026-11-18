@@ -437,3 +437,19 @@ tr.clicavel:hover td { background: var(--verde-claro); }
   .pin svg { filter: none; }
   .rotulo-area { text-shadow: 0 0 2px #fff; }
 }
+
+/* ===== Seletor de serviço (topo) e modo consulta — 11/2026 ===== */
+.svc-seg { display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap; }
+.svc-seg button { flex: 1 1 auto; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; padding: 6px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.svc-seg button:hover { background: rgba(255,255,255,.12); }
+.svc-seg button.on { background: #fff; color: var(--verde-esc); border-color: #fff; }
+/* blocos que só valem para serviços de rua, só para pontos críticos ou só para capina */
+body.svc-pontos .so-ruas { display: none !important; }
+body:not(.svc-pontos) .so-pontos { display: none !important; }
+body:not(.svc-capina) .so-capina { display: none !important; }
+/* com um cartão só, ocupa a linha toda */
+.cards-duplos > .card:only-child, body.svc-pontos .cards-duplos, body:not(.svc-pontos) .cards-duplos { grid-template-columns: 1fr; }
+/* consulta (chefia / prefeitura): sem planilha, formulários, edição e cartões de conferência */
+body.consulta .interno,
+body.consulta #btDesenharMapa,
+body.consulta #btCamadasMapa { display: none !important; }
