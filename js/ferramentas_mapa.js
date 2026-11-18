@@ -21,6 +21,16 @@ const FerramentasMapa = (() => {
   /* Planejamento */
   let desenhos = [], selId = null, desenhando = false, tipoDesenho = "linha", mostrarDesenhos = true, snapRua = true;
   let pontosTemp = [], cursorTemp = null, filtroLista = "";
+  let continuando = null;          // { id, doInicio }: a linha que está sendo continuada (fica guardada até Concluir)
+  const historico = [];            // cópias do planejamento antes de cada mudança (Desfazer / Ctrl+Z)
+  function guardarHistorico() { historico.push(JSON.stringify(desenhos)); if (historico.length > 30) historico.shift(); }
+  function desfazerMudanca() {
+    if (!historico.length) return false;
+    const antes = JSON.parse(historico.pop());
+    desenhos.length = 0; desenhos.push(...antes);          // mesmo vetor (outros módulos leem FerramentasMapa.desenhos)
+    if (selId && !desenhos.some(d => d.id === selId)) selId = null;
+    aoMudar(true); return true;
+  }
 
   const SVG_PEGMAN = `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="12" cy="29.5" rx="6.5" ry="2" fill="rgba(0,0,0,0.28)"/>
@@ -219,11 +229,11 @@ const FerramentasMapa = (() => {
       b.hidden = false;
       b.innerHTML = tipoDesenho === "ponto"
         ? `<span class="st-badge des">${ICO.lapis} <b>Novo ponto:</b> clique no mapa onde fica o ponto</span><button type="button" class="sec" id="btCancelarDesenho">Cancelar (Esc)</button>`
-        : `<span class="st-badge des">${ICO.lapis} <b>${tipoDesenho === "poligono" ? "Desenhando área" : "Desenhando linha"}:</b> ${pontosTemp.length} ponto${pontosTemp.length === 1 ? "" : "s"} · <b>${med}</b></span>
+        : `<span class="st-badge des">${ICO.lapis} <b>${continuando ? "Continuando " + (continuando.doInicio ? "pelo início" : "pelo fim") : tipoDesenho === "poligono" ? "Desenhando área" : "Desenhando linha"}:</b> ${pontosTemp.length} ponto${pontosTemp.length === 1 ? "" : "s"} · <b>${med}</b></span>
           <label class="ck-snap"><input type="checkbox" id="ckSnapBarra" ${snapRua ? "checked" : ""}> Ímã de rua</label>
           <button type="button" class="sec" id="btDesfazerPt" ${pontosTemp.length ? "" : "disabled"}>Desfazer ponto</button>
           <button type="button" id="btConcluirDesenho" ${pontosTemp.length >= min ? "" : "disabled"}>Concluir (Enter)</button>
-          <button type="button" class="sec" id="btCancelarDesenho">Cancelar (Esc)</button>`;
+          <button type="button" class="sec" id="btCancelarDesenho" title="${continuando ? "A linha volta como estava antes" : "Descarta a linha que está sendo desenhada"}">${continuando ? "Cancelar (Esc): volta como estava" : "Cancelar (Esc)"}</button>`;
       if ($("ckSnapBarra")) $("ckSnapBarra").onchange = ev => { snapRua = ev.target.checked; };
       if ($("btDesfazerPt")) $("btDesfazerPt").onclick = () => desfazerUltimoPonto();
       if ($("btConcluirDesenho")) $("btConcluirDesenho").onclick = () => pararDesenho(true);
@@ -236,12 +246,107 @@ const FerramentasMapa = (() => {
   function iniciarDesenho(tipo) {
     pararTudo("desenho");
     tipoDesenho = tipo || "linha";
-    desenhando = true; pontosTemp = []; cursorTemp = null; camadaTemp.clearLayers();
+    desenhando = true; continuando = null; pontosTemp = []; cursorTemp = null; camadaTemp.clearLayers();
     mapa.doubleClickZoom.disable();
     mapa.getContainer().classList.add("cursor-desenho");
     const bt = $("btDesenharMapa"); if (bt) bt.classList.add("on");
     atualizarFlag(); atualizarBarraFlutuante();
     if (App.ui.aberto && App.ui.aberto.tipo === "estudio") renderizarPainelEstudio(true);
+  }
+  function continuarLinha(d, doInicio) {
+    iniciarDesenho("linha");
+    continuando = { id: d.id, doInicio: !!doInicio };
+    pontosTemp = doInicio ? d.coords.slice().reverse() : d.coords.slice();
+    renderizarDesenhosNoMapa(); desenharPreviewTemp(); atualizarBarraFlutuante();
+    if (App.ui.aberto && App.ui.aberto.tipo === "estudio") renderizarPainelEstudio(true);
+  }
+  // ponto da linha mais perto do clique: índice do trecho e o ponto projetado nele
+  function trechoMaisPerto(c, ll, fechado) {
+    const kx = 111320 * Math.cos(ll.lat * Math.PI / 180), ky = 110574;
+    let melhor = { i: 0, p: c[0], d: Infinity };
+    const n = fechado ? c.length : c.length - 1;
+    for (let i = 0; i < n; i++) {
+      const a = c[i], b = c[(i + 1) % c.length];
+      const ax = a[1] * kx, ay = a[0] * ky, bx = b[1] * kx, by = b[0] * ky, px = ll.lng * kx, py = ll.lat * ky;
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2)) : 0;
+      const qx = ax + t * dx, qy = ay + t * dy, dd = Math.hypot(px - qx, py - qy);
+      if (dd < melhor.d) melhor = { i, p: [qy / ky, qx / kx], d: dd };
+    }
+    return melhor;
+  }
+  function dividirLinha(d, ll) {
+    const m = trechoMaisPerto(d.coords, ll, false);
+    const a = [...d.coords.slice(0, m.i + 1), m.p], b = [m.p, ...d.coords.slice(m.i + 1)];
+    if (a.length < 2 || b.length < 2) return;
+    guardarHistorico();
+    d.coords = a;
+    const nova = { ...JSON.parse(JSON.stringify(d)), id: "item_" + Date.now() + "_" + Math.floor(Math.random() * 1000), nome: d.nome + " (2)", coords: b };
+    delete nova.nomeBase;
+    desenhos.splice(desenhos.indexOf(d) + 1, 0, nova);
+    selId = nova.id; aoMudar(true);
+  }
+  function excluirItem(d) {
+    if (!confirm(`Excluir "${d.nome}"?\n(Dá para voltar com Desfazer ou Ctrl+Z.)`)) return;
+    guardarHistorico();
+    const i = desenhos.indexOf(d); if (i >= 0) desenhos.splice(i, 1);
+    if (selId === d.id) selId = null; aoMudar(true);
+  }
+  // botão direito no corpo da linha/área
+  function menuDoItem(d, ev) {
+    L.DomEvent.stopPropagation(ev); if (ev.originalEvent) ev.originalEvent.preventDefault();
+    if (desenhando || window.FERRAMENTA_ATIVA) return;
+    if (selId !== d.id) { selId = d.id; abrirEstudioPainel(); renderizarDesenhosNoMapa(); }
+    const linha = d.tipo === "linha";
+    const div = L.DomUtil.create("div", "menu-item-mapa");
+    div.innerHTML = `<b>${U.esc(d.nome)}</b>
+      <button type="button" data-m="curva">Pôr uma bolinha aqui</button>
+      ${linha ? `<button type="button" data-m="dividir">Dividir a linha aqui</button>
+      <button type="button" data-m="fim">Continuar pelo fim</button>
+      <button type="button" data-m="ini">Continuar pelo início</button>` : ""}
+      <button type="button" data-m="excluir" class="perigo">Excluir ${linha ? "esta linha" : "esta área"}</button>`;
+    const pop = L.popup({ closeButton: false, className: "pop-menu-item", offset: [0, -4] }).setLatLng(ev.latlng).setContent(div).openOn(mapa);
+    L.DomEvent.disableClickPropagation(div);
+    div.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
+      mapa.closePopup(pop);
+      const k = b.dataset.m;
+      if (k === "curva") { const m = trechoMaisPerto(d.coords, ev.latlng, !linha); guardarHistorico(); d.coords.splice(m.i + 1, 0, m.p); aoMudar(true); }
+      else if (k === "dividir") dividirLinha(d, ev.latlng);
+      else if (k === "fim" || k === "ini") continuarLinha(d, k === "ini");
+      else if (k === "excluir") excluirItem(d);
+    });
+  }
+  // arrastar o corpo da linha/área selecionada: puxa uma curva naquele lugar (com Shift: move o item inteiro)
+  function ligarArrastoCorpo(d, pegas, formas, fechado) {
+    pegas.forEach(pega => pega.on("mousedown", ev => {
+      if (d.id !== selId || desenhando || window.FERRAMENTA_ATIVA || (ev.originalEvent && ev.originalEvent.button !== 0)) return;
+      L.DomEvent.stopPropagation(ev); if (ev.originalEvent) ev.originalEvent.preventDefault();
+      const moverTudo = ev.originalEvent && ev.originalEvent.shiftKey;
+      const ini = ev.latlng, orig = d.coords.map(p => p.slice());
+      const m = moverTudo ? null : trechoMaisPerto(orig, ini, fechado);
+      let mexeu = false, c = orig;
+      mapa.dragging.disable();
+      const mover = e => {
+        const px0 = mapa.latLngToContainerPoint(ini), px1 = mapa.latLngToContainerPoint(e.latlng);
+        if (!mexeu && px0.distanceTo(px1) < 4) return;
+        mexeu = true; mapa.closePopup();
+        if (moverTudo) { const dl = e.latlng.lat - ini.lat, dn = e.latlng.lng - ini.lng; c = orig.map(p => [p[0] + dl, p[1] + dn]); }
+        else { c = orig.slice(); c.splice(m.i + 1, 0, [e.latlng.lat, e.latlng.lng]); }
+        formas.forEach(x => x.setLatLngs(c));
+      };
+      let feito = false;
+      const soltar = () => {
+        if (feito) return; feito = true;
+        mapa.off("mousemove", mover); document.removeEventListener("mouseup", soltar);
+        mapa.dragging.enable();
+        if (!mexeu) return;
+        guardarHistorico();
+        if (!moverTudo) c[m.i + 1] = ajustarPontoNaRua(c[m.i + 1]);
+        d.coords = c;
+        aoMudar(true);
+      };
+      mapa.on("mousemove", mover); document.addEventListener("mouseup", soltar);
+    }));
   }
   function desfazerUltimoPonto() { if (!pontosTemp.length) return; pontosTemp.pop(); desenharPreviewTemp(); atualizarBarraFlutuante(); }
   function novoItem(tipo, coords, extra) {
@@ -264,7 +369,14 @@ const FerramentasMapa = (() => {
     setTimeout(() => mapa.doubleClickZoom.enable(), 250);
     const bt = $("btDesenharMapa"); if (bt) bt.classList.remove("on");
     const min = tipoDesenho === "poligono" ? 3 : 2;
-    if (salvar && pontosTemp.length >= min && tipoDesenho !== "ponto") {
+    if (continuando) {
+      // continuar uma linha: Concluir troca o traçado da MESMA linha (nome, cor e campos ficam); Cancelar deixa como estava
+      const d = desenhos.find(x => x.id === continuando.id);
+      if (d && salvar && pontosTemp.length >= 2) { guardarHistorico(); const c = pontosTemp.slice(); d.coords = continuando.doInicio ? c.reverse() : c; salvarDesenhos(); }
+      if (d) selId = d.id;
+      continuando = null;
+    } else if (salvar && pontosTemp.length >= min && tipoDesenho !== "ponto") {
+      guardarHistorico();
       const d = novoItem(tipoDesenho, pontosTemp.slice());
       desenhos.push(d); selId = d.id; salvarDesenhos(); abrirEstudioPainel();
     }
@@ -308,25 +420,35 @@ const FerramentasMapa = (() => {
   function renderizarDesenhosNoMapa() {
     camadaDesenhos.clearLayers(); camadaEdicao.clearLayers();
     if (!mostrarDesenhos) return;
-    desenhos.filter(d => d.visivel !== false && d.coords && d.coords.length).forEach(d => {
+    // o item selecionado vai por último = fica por cima (assim ele recebe o clique e o arrasto mesmo com linhas sobrepostas)
+    desenhos.filter(d => d.visivel !== false && d.coords && d.coords.length && !(continuando && continuando.id === d.id))
+      .sort((a, b) => (a.id === selId) - (b.id === selId)).forEach(d => {
       const sel = d.id === selId;
       if (d.tipo === "ponto") {
         const mk = L.marker(d.coords[0], { icon: iconePonto(d, sel), draggable: sel && !desenhando, zIndexOffset: sel ? 1800 : 600 });
         mk.bindTooltip(() => dicaItem(d), { className: "dica", direction: "top" });
         mk.on("click", () => selecionar(d));
+        mk.on("dragstart", () => guardarHistorico());
         mk.on("dragend", ev => { const p = ev.target.getLatLng(); d.coords = [[p.lat, p.lng]]; aoMudar(true); });
+        mk.on("contextmenu", ev => { L.DomEvent.stopPropagation(ev); excluirItem(d); });
         mk.addTo(camadaDesenhos);
         return;
       }
       const poli = d.tipo === "poligono";
       if (d.coords.length < (poli ? 3 : 2)) return;
       const Forma = poli ? L.polygon : L.polyline;
-      if (!poli) Forma(d.coords, { pane: "desenhosPane", color: sel ? "#ffd400" : "#fff", weight: (d.espessura || 5) + (sel ? 5 : 3), opacity: .92, lineCap: "round", interactive: false }).addTo(camadaDesenhos);
+      const halo = poli ? null : Forma(d.coords, { pane: "desenhosPane", color: sel ? "#ffd400" : "#fff", weight: (d.espessura || 5) + (sel ? 5 : 3), opacity: .92, lineCap: "round", interactive: false }).addTo(camadaDesenhos);
       const f = Forma(d.coords, { pane: "desenhosPane", color: poli && sel ? "#b8860b" : (d.cor || "#1e7b34"), weight: d.espessura || (poli ? 3 : 5), opacity: 1, dashArray: d.tracejada ? "8 6" : null, lineCap: "round",
         fillColor: d.cor || "#1e7b34", fillOpacity: poli ? (sel ? .32 : .22) : 0 });
-      f.bindTooltip(() => dicaItem(d), { sticky: true, className: "dica" });
-      f.on("click", ev => { if (desenhando || window.FERRAMENTA_ATIVA) return; L.DomEvent.stopPropagation(ev); selecionar(d); });
       f.addTo(camadaDesenhos);
+      // linha: uma faixa invisível mais larga por cima, para ficar fácil de clicar e arrastar (linha fina é difícil de acertar)
+      const alvo = poli ? null : L.polyline(d.coords, { pane: "desenhosPane", color: "#000", opacity: 0, weight: Math.max(18, (d.espessura || 5) + 12), lineCap: "round" }).addTo(camadaDesenhos);
+      [f, alvo].filter(Boolean).forEach(g => {
+        g.bindTooltip(() => dicaItem(d), { sticky: true, className: "dica" });
+        g.on("click", ev => { if (desenhando || window.FERRAMENTA_ATIVA) return; L.DomEvent.stopPropagation(ev); selecionar(d); });
+        g.on("contextmenu", ev => menuDoItem(d, ev));
+      });
+      ligarArrastoCorpo(d, [f, alvo].filter(Boolean), [f, halo, alvo].filter(Boolean), poli);
       if (sel && !desenhando) desenharVertices(d, poli);
     });
   }
@@ -334,15 +456,17 @@ const FerramentasMapa = (() => {
     const n = d.coords.length;
     d.coords.forEach((pt, idx) => {
       const mk = L.marker(pt, { draggable: true, zIndexOffset: 1500, icon: L.divIcon({ className: "vertice-mymaps", iconSize: [14, 14], iconAnchor: [7, 7],
-        html: `<div class="v-bola ${!fechado && idx === 0 ? "ini" : !fechado && idx === n - 1 ? "fim" : ""}" title="Arraste para mover · botão direito apaga"></div>` }) });
+        html: `<div class="v-bola ${!fechado && idx === 0 ? "ini" : !fechado && idx === n - 1 ? "fim" : ""}" title="${!fechado && (idx === 0 || idx === n - 1) ? "Clique para continuar a linha por aqui · arraste para mover" : "Arraste para mover · botão direito apaga"}"></div>` }) });
+      if (!fechado && (idx === 0 || idx === n - 1)) mk.on("click", ev => { L.DomEvent.stopPropagation(ev); continuarLinha(d, idx === 0); });
+      mk.on("dragstart", () => guardarHistorico());
       mk.on("drag", ev => { const p = ev.target.getLatLng(); d.coords[idx] = [p.lat, p.lng]; });
       mk.on("dragend", ev => { d.coords[idx] = ajustarPontoNaRua(ev.target.getLatLng()); aoMudar(true); });
-      mk.on("contextmenu", ev => { L.DomEvent.stopPropagation(ev); if (n <= (fechado ? 3 : 2)) return; d.coords.splice(idx, 1); aoMudar(true); });
+      mk.on("contextmenu", ev => { L.DomEvent.stopPropagation(ev); if (n <= (fechado ? 3 : 2)) return; guardarHistorico(); d.coords.splice(idx, 1); aoMudar(true); });
       mk.addTo(camadaEdicao);
       if (idx < n - 1 || fechado) {
         const q = d.coords[(idx + 1) % n], meio = [(pt[0] + q[0]) / 2, (pt[1] + q[1]) / 2];
         const mm = L.marker(meio, { draggable: true, zIndexOffset: 1400, icon: L.divIcon({ className: "vertice-meio-mymaps", iconSize: [12, 12], iconAnchor: [6, 6], html: `<div class="v-meio" title="Arraste ou clique para criar uma curva">+</div>` }) });
-        const inserir = ll => { d.coords.splice(idx + 1, 0, ajustarPontoNaRua(ll)); aoMudar(true); };
+        const inserir = ll => { guardarHistorico(); d.coords.splice(idx + 1, 0, ajustarPontoNaRua(ll)); aoMudar(true); };
         mm.on("click", ev => { L.DomEvent.stopPropagation(ev); inserir(ev.target.getLatLng()); });
         mm.on("dragend", ev => inserir(ev.target.getLatLng()));
         mm.addTo(camadaEdicao);
@@ -370,9 +494,17 @@ const FerramentasMapa = (() => {
     mapa.on("dblclick", ev => { if (desenhando) { L.DomEvent.stopPropagation(ev); pararDesenho(true); } });
     window.addEventListener("keydown", ev => {
       const t = ev.target && ev.target.tagName; if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
-      if (ev.key === "Escape") { if (desenhando) pararDesenho(false); if (modoPegman) alternarModoPegman(false); }
+      if (ev.key === "Escape") {
+        if (desenhando) {
+          // linha nova com vários pontos: pergunta antes de jogar fora (continuação: só volta como estava)
+          if (!continuando && tipoDesenho !== "ponto" && pontosTemp.length >= 3 && !confirm("Descartar a linha que você está desenhando?\n(Para guardar, use Concluir ou Enter.)")) return;
+          pararDesenho(false);
+        }
+        if (modoPegman) alternarModoPegman(false);
+      }
       else if (ev.key === "Enter" && desenhando) pararDesenho(true);
-      else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && desenhando) { ev.preventDefault(); desfazerUltimoPonto(); }
+      else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { if (desenhando) { ev.preventDefault(); desfazerUltimoPonto(); } else if (historico.length) { ev.preventDefault(); desfazerMudanca(); } }
+      else if (ev.key === "Delete" && !desenhando && selId) { const d = desenhos.find(x => x.id === selId); if (d) excluirItem(d); }
     });
   }
 
@@ -404,10 +536,12 @@ const FerramentasMapa = (() => {
     }
     const cor = `<div class="rotulo">Cor</div><div class="paleta-mymaps" id="paletaCores">${CORES.map(c => `<button type="button" class="cor-amostra ${d.cor === c ? "on" : ""}" data-cor="${c}" style="background:${c}" title="${c}"></button>`).join("")}<input type="color" id="edCorLivre" value="${U.esc(d.cor || "#1e7b34")}" title="Outra cor"></div>`;
     const obs = `<label class="campo">Observação<input type="text" id="edObs" value="${U.esc(d.obs || "")}"></label>`;
-    const dica = d.tipo === "ponto" ? `Arraste o ponto no mapa para mudar o lugar.` : `No mapa: arraste as bolinhas para ajustar, clique no <b>+</b> para criar uma curva e use o botão direito numa bolinha para apagá-la.`;
+    const dica = d.tipo === "ponto" ? `Arraste o ponto no mapa para mudar o lugar. Botão direito no ponto: excluir.`
+      : `No mapa: arraste as bolinhas para ajustar; arraste a própria ${d.tipo === "linha" ? "linha" : "borda"} para puxar uma curva (com <b>Shift</b>, move tudo); botão direito numa bolinha apaga ela; botão direito na ${d.tipo === "linha" ? "linha: dividir, continuar ou excluir" : "borda: excluir"}.${d.tipo === "linha" ? ` Clique na bolinha <b style="color:#16a34a">verde</b> (início) ou <b style="color:#dc2626">vermelha</b> (fim) para continuar por ali.` : ""} Errou? <b>Desfazer</b> ou Ctrl+Z.`;
     const botoes = `<div class="linha botoes" style="margin-top:10px">
         <button type="button" class="sec" id="btZoomItem">Centralizar</button>
-        ${d.tipo === "linha" ? `<button type="button" class="sec" id="btContinuarLinha">Continuar a linha</button><button type="button" class="sec" id="btInverterLinha">Inverter</button>` : ""}
+        ${historico.length ? `<button type="button" class="sec" id="btDesfazerMudanca" title="Ctrl+Z">Desfazer</button>` : ""}
+        ${d.tipo === "linha" ? `<button type="button" class="sec" id="btContinuarLinha">Continuar pelo fim</button><button type="button" class="sec" id="btContinuarInicio">Continuar pelo início</button><button type="button" class="sec" id="btInverterLinha" title="Troca o início com o fim">Inverter sentido</button>` : ""}
         ${d.tipo === "ponto" ? `<button type="button" class="sec" id="btSvItem">Street View</button>` : ""}
         <button type="button" class="sec" id="btDuplicarItem">Duplicar</button>
         <button type="button" class="sec" id="btExcluirItem" style="color:var(--vermelho);border-color:#f5c2c7">Excluir</button></div>`;
@@ -504,18 +638,16 @@ const FerramentasMapa = (() => {
       if ($("edCorLivre")) $("edCorLivre").oninput = ev => { atual.cor = ev.target.value; salvarDesenhos(); renderizarDesenhosNoMapa(); };
       $("btZoomItem").onclick = () => centralizar(atual);
       if ($("btSvItem")) $("btSvItem").onclick = () => abrirStreetView(atual.coords[0][0], atual.coords[0][1], atual.nome);
-      if ($("btContinuarLinha")) $("btContinuarLinha").onclick = () => {
-        iniciarDesenho("linha"); pontosTemp = atual.coords.slice();
-        desenhos = desenhos.filter(d => d.id !== atual.id); selId = null;
-        renderizarDesenhosNoMapa(); desenharPreviewTemp(); atualizarBarraFlutuante(); renderizarPainelEstudio(true);
-      };
-      if ($("btInverterLinha")) $("btInverterLinha").onclick = () => { atual.coords.reverse(); aoMudar(true); };
-      $("btDuplicarItem").onclick = () => { const c = { ...atual, id: "item_" + Date.now(), nome: atual.nome + " (cópia)", coords: atual.coords.map(p => [p[0] + .0002, p[1] + .0002]) }; desenhos.push(c); selId = c.id; aoMudar(true); };
-      $("btExcluirItem").onclick = () => { if (!confirm(`Excluir "${atual.nome}"?`)) return; desenhos = desenhos.filter(d => d.id !== atual.id); selId = null; aoMudar(true); };
+      if ($("btContinuarLinha")) $("btContinuarLinha").onclick = () => continuarLinha(atual, false);
+      if ($("btContinuarInicio")) $("btContinuarInicio").onclick = () => continuarLinha(atual, true);
+      if ($("btDesfazerMudanca")) $("btDesfazerMudanca").onclick = () => desfazerMudanca();
+      if ($("btInverterLinha")) $("btInverterLinha").onclick = () => { guardarHistorico(); atual.coords.reverse(); aoMudar(true); };
+      $("btDuplicarItem").onclick = () => { guardarHistorico(); const c = { ...atual, id: "item_" + Date.now(), nome: atual.nome + " (cópia)", coords: atual.coords.map(p => [p[0] + .0002, p[1] + .0002]) }; desenhos.push(c); selId = c.id; aoMudar(true); };
+      $("btExcluirItem").onclick = () => excluirItem(atual);
     }
     document.querySelectorAll("[data-sel-id]").forEach(el => el.onclick = () => { selId = el.dataset.selId; const d = desenhos.find(x => x.id === selId); if (d) centralizar(d); renderizarDesenhosNoMapa(); renderizarPainelEstudio(true); });
     document.querySelectorAll("[data-vis-id]").forEach(bt => bt.onclick = ev => { ev.stopPropagation(); const d = desenhos.find(x => x.id === bt.dataset.visId); if (d) { d.visivel = d.visivel === false; aoMudar(true); } });
-    if ($("btLimparTudo")) $("btLimparTudo").onclick = () => { if (!confirm("Apagar todos os itens do planejamento? Esta ação não pode ser desfeita.")) return; desenhos = []; selId = null; aoMudar(true); };
+    if ($("btLimparTudo")) $("btLimparTudo").onclick = () => { if (!confirm("Apagar todos os itens do planejamento?\n(Dá para voltar com Desfazer ou Ctrl+Z enquanto a página estiver aberta.)")) return; guardarHistorico(); desenhos.length = 0; selId = null; aoMudar(true); };
     document.querySelectorAll("[data-exp-des]").forEach(bt => bt.onclick = () => Exportar.exportarDesenhos(bt.dataset.expDes, desenhos));
     const btImp = $("btImportarDesenho"), inImp = $("inImportarDesenho");
     if (btImp && inImp) { btImp.onclick = () => inImp.click(); inImp.onchange = async ev => { const f = ev.target.files[0]; if (!f) return; await importarArquivo(f); inImp.value = ""; }; }
@@ -557,6 +689,7 @@ const FerramentasMapa = (() => {
     } catch (e) { alert("Não foi possível abrir o arquivo: " + e.message); }
   }
   function adicionarItens(itens) {
+    guardarHistorico();
     desenhos.push(...itens); selId = itens[itens.length - 1].id; salvarDesenhos(); renderizarDesenhosNoMapa();
     const grupo = L.featureGroup(itens.map(d => d.tipo === "ponto" ? L.marker(d.coords[0]) : L.polyline(d.coords)));
     if (grupo.getLayers().length) mapa.fitBounds(grupo.getBounds(), { padding: [40, 40] });
@@ -674,7 +807,7 @@ const FerramentasMapa = (() => {
   return {
     init, abrirStreetView, fecharStreetView, alternarModoPegman, abrirEstudioPainel, iniciarDesenho,
     iniciarDesenhoNovaLinha: () => iniciarDesenho("linha"), renderizarDesenhosNoMapa, pararTudo, atualizarFlag,
-    adicionarItens, feicoesParaItens, novoItem, paraGeojson, deGeojson, comprLinha, areaM2, distMetros,
+    adicionarItens, feicoesParaItens, guardarHistorico, desfazerMudanca, novoItem, paraGeojson, deGeojson, comprLinha, areaM2, distMetros,
     get desenhos() { return desenhos; }
   };
 })();

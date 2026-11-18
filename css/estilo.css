@@ -453,3 +453,11 @@ body:not(.svc-capina) .so-capina { display: none !important; }
 body.consulta .interno,
 body.consulta #btDesenharMapa,
 body.consulta #btCamadasMapa { display: none !important; }
+
+/* menu do botão direito numa linha/área do planejamento */
+.pop-menu-item .leaflet-popup-content { margin: 8px 10px; }
+.menu-item-mapa { display: flex; flex-direction: column; gap: 4px; min-width: 170px; font-size: 12px; }
+.menu-item-mapa b { margin-bottom: 2px; color: var(--verde-esc); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-item-mapa button { text-align: left; background: #fff; border: 1px solid #dfe7df; border-radius: 6px; padding: 5px 8px; cursor: pointer; color: var(--txt); font-size: 12px; }
+.menu-item-mapa button:hover { background: var(--verde-claro, #e8f5e9); }
+.menu-item-mapa button.perigo { color: var(--vermelho, #c62828); border-color: #f5c2c7; }

@@ -111,4 +111,4 @@ Para o chefe ou a prefeitura: `mapas.cblplanejamento.com.br/?consulta&servico=ca
 | `js/ferramentas_extra.js` | Trajeto: paradas entre a saída (A) e a chegada (B) ("+ Adicionar parada", subir/descer/tirar, digitar ou clicar no mapa), pinos laranja numerados, distância e tempo de cada trecho, "Otimizar a ordem das paradas" (serviço `trip` do OSRM, mantém A e B fixos), link do Google Maps com as paradas, "Salvar no planejamento" com a ordem nas observações. |
 | `js/ferramentas_mapa.js`, `js/config.js` | `CFG.recursos.capinaNoPlanejamento` (padrão `true`): mostra "Capina das linhas: N equipes por dia" no Planejar. O Mapa de Planejamento do hub desliga e mostra "Visíveis no mapa". |
 
-Estes dois arquivos também são usados pelo Mapa de Planejamento do hub (`hub.cblplanejamento/planejamento/js/`): ao mudar aqui, copie para lá.
+Estes dois arquivos também são usados pelo Mapa de Planejamento do hub (`planejamento/js/`): ao mudar aqui, copie para lá.
