@@ -439,7 +439,7 @@ const FerramentasMapa = (() => {
       const Forma = poli ? L.polygon : L.polyline;
       const halo = poli ? null : Forma(d.coords, { pane: "desenhosPane", color: sel ? "#ffd400" : "#fff", weight: (d.espessura || 5) + (sel ? 5 : 3), opacity: .92, lineCap: "round", interactive: false }).addTo(camadaDesenhos);
       const f = Forma(d.coords, { pane: "desenhosPane", color: poli && sel ? "#b8860b" : (d.cor || "#1e7b34"), weight: d.espessura || (poli ? 3 : 5), opacity: 1, dashArray: d.tracejada ? "8 6" : null, lineCap: "round",
-        fillColor: d.cor || "#1e7b34", fillOpacity: poli ? (sel ? .32 : .22) : 0 });
+        fillColor: d.cor || "#1e7b34", fillOpacity: poli ? (d.preenchido === false ? (sel ? .06 : 0) : (sel ? .32 : .22)) : 0 });
       f.addTo(camadaDesenhos);
       // linha: uma faixa invisível mais larga por cima, para ficar fácil de clicar e arrastar (linha fina é difícil de acertar)
       const alvo = poli ? null : L.polyline(d.coords, { pane: "desenhosPane", color: "#000", opacity: 0, weight: Math.max(18, (d.espessura || 5) + 12), lineCap: "round" }).addTo(camadaDesenhos);
@@ -807,7 +807,7 @@ const FerramentasMapa = (() => {
   return {
     init, abrirStreetView, fecharStreetView, alternarModoPegman, abrirEstudioPainel, iniciarDesenho,
     iniciarDesenhoNovaLinha: () => iniciarDesenho("linha"), renderizarDesenhosNoMapa, pararTudo, atualizarFlag,
-    adicionarItens, feicoesParaItens, guardarHistorico, desfazerMudanca, novoItem, paraGeojson, deGeojson, comprLinha, areaM2, distMetros,
+    adicionarItens, feicoesParaItens, guardarHistorico, desfazerMudanca, salvar: () => aoMudar(true), novoItem, paraGeojson, deGeojson, comprLinha, areaM2, distMetros,
     get desenhos() { return desenhos; }
   };
 })();
